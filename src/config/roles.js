@@ -41,6 +41,9 @@ const allRoles = {
     'joinSession',
     'getDailyPaymentTotal',
     'getMonthlyPaymentTotal',
+    'getPaymentTotalByService',
+    'approveSignatureByUser',
+    'approveSignatureBySecretary',
   ],
   notary: ['getDocumentsByRole', 'forwardDocumentStatus', 'getApproveHistory', 'joinSession', 'getSessionBySessionId'],
   secretary: [
