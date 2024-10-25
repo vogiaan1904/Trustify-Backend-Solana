@@ -22,6 +22,7 @@ const createDocument = {
       .required(),
     requesterInfo: Joi.object()
       .keys({
+        fullName: Joi.string(),
         citizenId: Joi.string().required(),
         phoneNumber: Joi.string().required(),
         email: Joi.string().email().required(),

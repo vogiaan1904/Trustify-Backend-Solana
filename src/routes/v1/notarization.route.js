@@ -67,6 +67,7 @@ router.route('/upload-files').post(
   auth('uploadDocuments'),
   upload.array('files'),
   (req, res, next) => {
+    console.log('Uploaded files:', req.files);
     req.body.notarizationService = JSON.parse(req.body.notarizationService);
     req.body.notarizationField = JSON.parse(req.body.notarizationField);
     req.body.requesterInfo = JSON.parse(req.body.requesterInfo);
