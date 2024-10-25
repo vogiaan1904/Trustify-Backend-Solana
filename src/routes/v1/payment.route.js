@@ -6,7 +6,7 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: Payment
+ *   name: Payments
  *   description: Testing route for payment API
  */
 

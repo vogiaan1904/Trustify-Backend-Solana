@@ -136,6 +136,55 @@ const getMonthlyPaymentTotal = async () => {
   return monthlyPaymentTotal.length > 0 ? monthlyPaymentTotal[0].total : 0;
 };
 
+const getPaymentTotalByService = async (period) => {
+  let start;
+  let end;
+  switch (period) {
+    case 'daily':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      break;
+    case 'weekly':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      break;
+    case 'monthly':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const paymentTotalByService = await Payment.aggregate([
+    { $match: { createdAt: { $gte: start, $lte: end } } },
+    {
+      $lookup: {
+        from: 'notarizationServices',
+        localField: 'serviceId',
+        foreignField: '_id',
+        as: 'serviceInfo',
+      },
+    },
+    { $unwind: '$serviceInfo' },
+    {
+      $group: {
+        _id: '$serviceInfo.name',
+        totalAmount: { $sum: '$amount' },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        serviceName: '$_id',
+        totalAmount: 1,
+      },
+    },
+  ]);
+
+  return paymentTotalByService;
+};
+
 module.exports = {
   getToDayDocumentCount,
   getToDayUserCount,
@@ -148,4 +197,5 @@ module.exports = {
   getMonthlySessionCount,
   getDailyPaymentTotal,
   getMonthlyPaymentTotal,
+  getPaymentTotalByService,
 };

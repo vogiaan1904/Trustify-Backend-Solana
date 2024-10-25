@@ -398,6 +398,9 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
       userId,
+      documentId,
+      serviceId: document.notarizationService.id,
+      fieldId: document.notarizationField.id,
     });
 
     await payment.save();

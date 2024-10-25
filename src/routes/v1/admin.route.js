@@ -38,6 +38,8 @@ router.get('/payments/daily', auth('getDailyPaymentTotal'), adminController.getD
 
 router.get('/payments/monthly', auth('getMonthlyPaymentTotal'), adminController.getMonthlyPaymentTotal);
 
+router.get('/payments/:period/service', auth('getPaymentTotalByService'), adminController.getPaymentTotalByService);
+
 module.exports = router;
 
 /**
@@ -368,6 +370,57 @@ module.exports = router;
  *               type: number
  *               description: The total value of payments created this month
  *               example: 10000
+ *       "401":
+ *         description: Unauthorized access - invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         description: Forbidden - the user doesn't have access
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         description: Not found - endpoint does not exist
+ */
+
+/**
+ * @swagger
+ * /admin/metrics/payments/{period}/service:
+ *   get:
+ *     summary: Get total payment value by service
+ *     description: Retrieve the total value of payments created by service for a given period. Only admins can access this information.
+ *     tags: [Admins]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly]
+ *         required: true
+ *         description: The period to filter payments by
+ *     responses:
+ *       "200":
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   _id:
+ *                     type: string
+ *                     description: The name of the notarization service
+ *                     example: "Example Notarization Service"
+ *                   total:
+ *                     type: number
+ *                     description: The total value of payments for this notarization service
+ *                     example: 1000
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:

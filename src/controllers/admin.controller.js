@@ -59,6 +59,12 @@ const getMonthlyPaymentTotal = async (req, res) => {
   res.status(httpStatus.OK).send({ monthlyPaymentTotal: result });
 };
 
+const getPaymentTotalByService = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const result = await adminService.getPaymentTotalByService(period);
+  res.status(httpStatus.OK).send(result);
+});
+
 module.exports = {
   getToDayDocumentCount,
   getToDayUserCount,
@@ -71,4 +77,5 @@ module.exports = {
   getMonthlySessionCount,
   getDailyPaymentTotal,
   getMonthlyPaymentTotal,
+  getPaymentTotalByService,
 };
