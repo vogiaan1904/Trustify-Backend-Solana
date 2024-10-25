@@ -52,7 +52,7 @@ const getHistoryByUserId = catchAsync(async (req, res) => {
 });
 
 const getHistoryWithStatus = catchAsync(async (req, res) => {
-  const { userId } = req.query;
+  const userId = req.user.id;
   const history = await notarizationService.getHistoryWithStatus(userId);
   res.status(httpStatus.OK).send(history);
 });
