@@ -731,4 +731,31 @@ router
  *         $ref: '#/components/responses/InternalServerError'
  */
 
+/**
+ * @swagger
+ * /notarization/get-history-with-status:
+ *   get:
+ *     summary: Get notarization history with status
+ *     tags: [Notarizations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Notarization history with status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Notarizations'
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
 module.exports = router;

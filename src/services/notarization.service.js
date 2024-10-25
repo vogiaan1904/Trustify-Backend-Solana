@@ -1,4 +1,5 @@
 const httpStatus = require('http-status');
+const { ObjectId } = require('mongoose').Types;
 const emailService = require('./email.service');
 const { Document, StatusTracking, ApproveHistory, NotarizationService, NotarizationField } = require('../models');
 const ApiError = require('../utils/ApiError');
@@ -131,15 +132,25 @@ const getHistoryByUserId = async (userId) => {
 };
 
 const getHistoryWithStatus = async (userId) => {
-  const history = await Document.find({ userId });
-  const statusTrackings = await StatusTracking.find({ documentId: { $in: history.map((doc) => doc._id) } });
-  return history.map((doc) => {
-    const statusTracking = statusTrackings.find((tracking) => tracking.documentId.toString() === doc._id.toString());
-    return {
-      ...doc.toObject(),
-      status: statusTracking.status,
-    };
-  });
+  const history = await Document.aggregate([
+    {
+      $match: { userId: new ObjectId(userId) },
+    },
+    {
+      $lookup: {
+        from: 'statustrackings',
+        localField: '_id',
+        foreignField: 'documentId',
+        as: 'status',
+        pipeline: [{ $sort: { updatedAt: -1 } }, { $limit: 1 }],
+      },
+    },
+  ]);
+
+  return history.map((doc) => ({
+    ...doc,
+    status: doc.status.length > 0 ? doc.status[0] : null,
+  }));
 };
 
 const getDocumentStatus = async (documentId) => {
