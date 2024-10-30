@@ -2,40 +2,85 @@ const httpStatus = require('http-status');
 const { adminService } = require('../services');
 const catchAsync = require('../utils/catchAsync');
 
-const getToDayDocumentCount = async (req, res) => {
-  const result = await adminService.getToDayDocumentCount();
-  res.status(httpStatus.OK).send(result);
-};
+const getDocumentCount = catchAsync(async (req, res) => {
+  const { period } = req.params; // Changed from req.query to req.params
+  const allowedPeriods = ['today', 'yesterday', 'this_week', 'this_month', 'this_year'];
+  console.log(period);
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
 
-const getToDayUserCount = async (req, res) => {
-  const result = await adminService.getToDayUserCount();
+  const result = await adminService.getDocumentCount(period);
   res.status(httpStatus.OK).send(result);
-};
+});
+
+// Remove specific controller function
+// const getToDayUserCount = async (req, res) => {
+//   const result = await adminService.getToDayUserCount();
+//   res.status(httpStatus.OK).send(result);
+// };
+
+// Add a generic controller function
+const getUserCount = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const allowedPeriods = ['today', 'yesterday', 'this_week', 'this_month', 'this_year'];
+
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
+
+  const result = await adminService.getUserCount(period);
+  res.status(httpStatus.OK).send(result);
+});
 
 const getUserMonthly = async (req, res) => {
   const result = await adminService.getUserMonthly();
   res.status(httpStatus.OK).send(result);
 };
 
-const getTodayDocumentsByNotaryField = async (req, res) => {
-  const result = await adminService.getTodayDocumentsByNotaryField();
+// const getTodayDocumentsByNotaryField = async (req, res) => {
+//   const result = await adminService.getTodayDocumentsByNotaryField();
+//   res.status(httpStatus.OK).send(result);
+// };
+
+// const getMonthDocumentsByNotaryField = async (req, res) => {
+//   const result = await adminService.getMonthDocumentsByNotaryField();
+//   res.status(httpStatus.OK).send(result);
+// };
+
+const getDocumentsByNotaryField = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
+
+  const result = await adminService.getDocumentsByNotaryField(period);
   res.status(httpStatus.OK).send(result);
-};
+});
 
-const getMonthDocumentsByNotaryField = async (req, res) => {
-  const result = await adminService.getMonthDocumentsByNotaryField();
+// const getDailySessionCount = async (req, res) => {
+//   const result = await adminService.getDailySessionCount();
+//   res.status(httpStatus.OK).send(result);
+// };
+
+// const getMonthlySessionCount = async (req, res) => {
+//   const result = await adminService.getMonthlySessionCount();
+//   res.status(httpStatus.OK).send(result);
+// };
+
+const getSessionCount = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
+
+  const result = await adminService.getSessionCount(period);
   res.status(httpStatus.OK).send(result);
-};
-
-const getDailySessionCount = async (req, res) => {
-  const result = await adminService.getDailySessionCount();
-  res.status(httpStatus.OK).send({ dailySessionCount: result });
-};
-
-const getMonthlySessionCount = async (req, res) => {
-  const result = await adminService.getMonthlySessionCount();
-  res.status(httpStatus.OK).send({ monthlySessionCount: result });
-};
+});
 
 const getEmployeeCount = catchAsync(async (req, res) => {
   const EmployeeCount = await adminService.getEmployeeCount();
@@ -49,15 +94,15 @@ const getEmployeeList = catchAsync(async (req, res) => {
   res.send(EmployeeList);
 });
 
-const getDailyPaymentTotal = async (req, res) => {
-  const result = await adminService.getDailyPaymentTotal();
-  res.status(httpStatus.OK).send({ dailyPaymentTotal: result });
-};
+// const getDailyPaymentTotal = async (req, res) => {
+//   const result = await adminService.getDailyPaymentTotal();
+//   res.status(httpStatus.OK).send({ dailyPaymentTotal: result });
+// };
 
-const getMonthlyPaymentTotal = async (req, res) => {
-  const result = await adminService.getMonthlyPaymentTotal();
-  res.status(httpStatus.OK).send({ monthlyPaymentTotal: result });
-};
+// const getMonthlyPaymentTotal = async (req, res) => {
+//   const result = await adminService.getMonthlyPaymentTotal();
+//   res.status(httpStatus.OK).send({ monthlyPaymentTotal: result });
+// };
 
 const getPaymentTotalByService = catchAsync(async (req, res) => {
   const { period } = req.params;
@@ -65,17 +110,33 @@ const getPaymentTotalByService = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(result);
 });
 
+const getPaymentTotalByNotarizationField = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const result = await adminService.getPaymentTotalByNotarizationField(period);
+  res.status(httpStatus.OK).send(result);
+});
+
+const getPaymentTotal = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
+
+  const result = await adminService.getPaymentTotal(period);
+  res.status(httpStatus.OK).send(result);
+});
+
 module.exports = {
-  getToDayDocumentCount,
-  getToDayUserCount,
+  getDocumentCount,
+  getUserCount,
   getUserMonthly,
-  getTodayDocumentsByNotaryField,
-  getMonthDocumentsByNotaryField,
+  getDocumentsByNotaryField,
   getEmployeeCount,
   getEmployeeList,
-  getDailySessionCount,
-  getMonthlySessionCount,
-  getDailyPaymentTotal,
-  getMonthlyPaymentTotal,
+  getSessionCount,
   getPaymentTotalByService,
+  getPaymentTotalByNotarizationField,
+  getPaymentTotal, // Newly added
 };
