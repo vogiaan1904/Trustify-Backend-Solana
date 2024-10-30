@@ -1,82 +1,246 @@
 const moment = require('moment');
 const { Document, User, Session, Payment } = require('../models');
 
-const getToDayDocumentCount = async () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-  // document count today, percentDocumentGrowth
-  const toDayDocumentCount = await Document.count({
-    createdAt: { $gte: startOfToday, $lte: endOfToday },
-  });
-  const yesterdayDocumentCount = await Document.count({
-    createdAt: { $gte: moment().subtract(1, 'd').startOf('day'), $lte: moment().subtract(1, 'd').endOf('day') },
-  });
-  const percentDocumentGrowth = yesterdayDocumentCount
-    ? (toDayDocumentCount - yesterdayDocumentCount) / yesterdayDocumentCount
-    : 100;
-  return {
-    toDayDocumentCount,
-    percentDocumentGrowth,
-  };
-};
+const getDocumentCount = async (period) => {
+  let start;
+  let end;
+  let subtractValue;
+  let subtractUnit;
 
-const getToDayUserCount = async () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  switch (period) {
+    case 'today':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'yesterday':
+      start = moment().subtract(1, 'day').startOf('day').toDate();
+      end = moment().subtract(1, 'day').endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'this_week':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      subtractValue = 1;
+      subtractUnit = 'week';
+      break;
+    case 'this_month':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      subtractValue = 1;
+      subtractUnit = 'month';
+      break;
+    case 'this_year':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      subtractValue = 1;
+      subtractUnit = 'year';
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
 
-  const toDayUserCount = await User.count({
-    createdAt: { $gte: startOfToday, $lte: endOfToday },
-  });
-  const yesterdayUserCount = await User.count({
-    createdAt: { $gte: moment().subtract(1, 'd').startOf('day'), $lte: moment().subtract(1, 'd').endOf('day') },
-  });
-  const percentUserGrowth = yesterdayUserCount ? (toDayUserCount - yesterdayUserCount) / yesterdayUserCount : 100;
-  return {
-    toDayUserCount,
-    percentUserGrowth,
-  };
-};
+  const previousStart = moment(start).subtract(subtractValue, subtractUnit).toDate();
+  const previousEnd = moment(end).subtract(subtractValue, subtractUnit).toDate();
 
-const getUserMonthly = async () => {
-  // user count for this month and last month
-  const userThisMonthCount = await User.count({
-    createdAt: { $gte: moment().startOf('month'), $lte: moment().endOf('month') },
-  });
-  const userLastMonthCount = await User.count({
-    createdAt: { $gte: moment().subtract(1, 'month').startOf('month'), $lte: moment().subtract(1, 'month').endOf('month') },
-  });
-  return {
-    userThisMonthCount,
-    userLastMonthCount,
-  };
-};
-
-const getTodayDocumentsByNotaryField = async () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-  const todayDocumentsByNotaryField = await Document.aggregate([
-    { $match: { createdAt: { $gte: startOfToday, $lte: endOfToday } } },
-    { $group: { _id: '$notaryField', count: { $sum: 1 } } },
+  const [currentCount, previousCount] = await Promise.all([
+    Document.count({
+      createdAt: { $gte: start, $lte: end },
+    }),
+    Document.count({
+      createdAt: { $gte: previousStart, $lte: previousEnd },
+    }),
   ]);
+
+  const growthPercent = previousCount ? ((currentCount - previousCount) / previousCount) * 100 : 100;
+
   return {
-    todayDocumentsByNotaryField,
+    currentPeriod: {
+      period,
+      documentCount: currentCount,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      documentCount: previousCount,
+    },
+    growthPercent,
   };
 };
 
-const getMonthDocumentsByNotaryField = async () => {
-  // Document count by notaryField for this month
-  const monthDocumentsByNotaryField = await Document.aggregate([
-    { $match: { createdAt: { $gte: moment().startOf('month').toDate(), $lte: moment().endOf('month').toDate() } } },
-    { $group: { _id: '$notaryField', count: { $sum: 1 } } },
+const getUserCount = async (period) => {
+  let start;
+  let end;
+  let subtractValue;
+  let subtractUnit;
+
+  switch (period) {
+    case 'today':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'this_week':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      subtractValue = 1;
+      subtractUnit = 'week';
+      break;
+    case 'this_month':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      subtractValue = 1;
+      subtractUnit = 'month';
+      break;
+    case 'this_year':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      subtractValue = 1;
+      subtractUnit = 'year';
+      break;
+    case 'yesterday':
+      start = moment().subtract(1, 'day').startOf('day').toDate();
+      end = moment().subtract(1, 'day').endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const previousStart = moment(start).subtract(subtractValue, subtractUnit).toDate();
+  const previousEnd = moment(end).subtract(subtractValue, subtractUnit).toDate();
+
+  const [currentCount, previousCount] = await Promise.all([
+    User.countDocuments({
+      createdAt: { $gte: start, $lte: end },
+    }),
+    User.countDocuments({
+      createdAt: { $gte: previousStart, $lte: previousEnd },
+    }),
   ]);
+
+  const growthPercent = previousCount ? ((currentCount - previousCount) / previousCount) * 100 : 100;
+
   return {
-    monthDocumentsByNotaryField,
+    currentPeriod: {
+      period,
+      userCount: currentCount,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      userCount: previousCount,
+    },
+    growthPercent,
+  };
+};
+
+const getDocumentsByNotaryField = async (period) => {
+  let start;
+  let end;
+  let subtractValue;
+  let subtractUnit;
+
+  switch (period) {
+    case 'daily':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'weekly':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      subtractValue = 1;
+      subtractUnit = 'week';
+      break;
+    case 'monthly':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      subtractValue = 1;
+      subtractUnit = 'month';
+      break;
+    case 'yearly':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      subtractValue = 1;
+      subtractUnit = 'year';
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const previousStart = moment(start).subtract(subtractValue, subtractUnit).toDate();
+  const previousEnd = moment(end).subtract(subtractValue, subtractUnit).toDate();
+  console.log('start', start);
+  console.log('end', end);
+  console.log('previousStart', previousStart);
+  console.log('previousEnd', previousEnd);
+
+  const [currentDocuments, previousDocuments] = await Promise.all([
+    Document.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      {
+        $lookup: {
+          from: 'notarizationFields',
+          localField: 'notarizationField.id',
+          foreignField: '_id',
+          as: 'fieldInfo',
+        },
+      },
+      { $unwind: '$fieldInfo' },
+      {
+        $group: {
+          _id: '$fieldInfo.name',
+          amount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          notarizationFieldName: '$_id',
+          amount: 1,
+          _id: 0,
+        },
+      },
+    ]),
+    Document.aggregate([
+      { $match: { createdAt: { $gte: previousStart, $lte: previousEnd } } },
+      {
+        $lookup: {
+          from: 'notarizationFields',
+          localField: 'notarizationField.id',
+          foreignField: '_id',
+          as: 'fieldInfo',
+        },
+      },
+      { $unwind: '$fieldInfo' },
+      {
+        $group: {
+          _id: '$fieldInfo.name',
+          amount: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          notarizationFieldName: '$_id',
+          amount: 1,
+          _id: 0,
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    currentPeriod: {
+      period,
+      totals: currentDocuments,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      totals: previousDocuments,
+    },
   };
 };
 
@@ -94,51 +258,263 @@ const getEmployeeList = async () => {
   return employeeList;
 };
 
-const getDailySessionCount = async () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-  const dailySessionCount = await Session.countDocuments({
-    createdAt: { $gte: startOfToday, $lte: endOfToday },
-  });
-  return dailySessionCount;
-};
+const getSessionCount = async (period) => {
+  let start;
+  let end;
+  let subtractValue;
+  let subtractUnit;
 
-const getMonthlySessionCount = async () => {
-  const startOfMonth = moment().startOf('month').toDate();
-  const endOfMonth = moment().endOf('month').toDate();
-  const monthlySessionCount = await Session.countDocuments({
-    createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-  });
-  return monthlySessionCount;
-};
+  switch (period) {
+    case 'daily':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'weekly':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      subtractValue = 1;
+      subtractUnit = 'week';
+      break;
+    case 'monthly':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      subtractValue = 1;
+      subtractUnit = 'month';
+      break;
+    case 'yearly':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      subtractValue = 1;
+      subtractUnit = 'year';
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
 
-const getDailyPaymentTotal = async () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-  const dailyPaymentTotal = await Payment.aggregate([
-    { $match: { createdAt: { $gte: startOfToday, $lte: endOfToday } } },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
+  const previousStart = moment(start).subtract(subtractValue, subtractUnit).toDate();
+  const previousEnd = moment(end).subtract(subtractValue, subtractUnit).toDate();
+
+  const [currentCount, previousCount] = await Promise.all([
+    Session.countDocuments({
+      $or: [{ startDate: { $gte: start, $lte: end } }, { endDate: { $gte: start, $lte: end } }],
+    }),
+    Session.countDocuments({
+      $or: [
+        { startDate: { $gte: previousStart, $lte: previousEnd } },
+        { endDate: { $gte: previousStart, $lte: previousEnd } },
+      ],
+    }),
   ]);
-  return dailyPaymentTotal.length > 0 ? dailyPaymentTotal[0].total : 0;
-};
 
-const getMonthlyPaymentTotal = async () => {
-  const startOfMonth = moment().startOf('month').toDate();
-  const endOfMonth = moment().endOf('month').toDate();
-  const monthlyPaymentTotal = await Payment.aggregate([
-    { $match: { createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
-    { $group: { _id: null, total: { $sum: '$amount' } } },
-  ]);
-  return monthlyPaymentTotal.length > 0 ? monthlyPaymentTotal[0].total : 0;
+  const growthPercent = previousCount ? ((currentCount - previousCount) / previousCount) * 100 : 100;
+
+  return {
+    currentPeriod: {
+      period,
+      sessionCount: currentCount,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      sessionCount: previousCount,
+    },
+    growthPercent,
+  };
 };
 
 const getPaymentTotalByService = async (period) => {
+  let currentStart;
+  let currentEnd;
+  let previousStart;
+  let previousEnd;
+
+  switch (period) {
+    case 'daily':
+      currentStart = moment().startOf('day').toDate();
+      currentEnd = moment().endOf('day').toDate();
+      previousStart = moment().subtract(1, 'day').startOf('day').toDate();
+      previousEnd = moment().subtract(1, 'day').endOf('day').toDate();
+      break;
+    case 'weekly':
+      currentStart = moment().startOf('week').toDate();
+      currentEnd = moment().endOf('week').toDate();
+      previousStart = moment().subtract(1, 'week').startOf('week').toDate();
+      previousEnd = moment().subtract(1, 'week').endOf('week').toDate();
+      break;
+    case 'monthly':
+      currentStart = moment().startOf('month').toDate();
+      currentEnd = moment().endOf('month').toDate();
+      previousStart = moment().subtract(1, 'month').startOf('month').toDate();
+      previousEnd = moment().subtract(1, 'month').endOf('month').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const [currentPayments, previousPayments] = await Promise.all([
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: currentStart, $lte: currentEnd } } },
+      {
+        $lookup: {
+          from: 'notarizationServices',
+          localField: 'serviceId',
+          foreignField: '_id',
+          as: 'serviceInfo',
+        },
+      },
+      { $unwind: '$serviceInfo' },
+      {
+        $group: {
+          _id: '$serviceInfo.name',
+          totalAmount: { $sum: '$amount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          serviceName: '$_id',
+          totalAmount: 1,
+        },
+      },
+    ]),
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: previousStart, $lte: previousEnd } } },
+      {
+        $lookup: {
+          from: 'notarizationServices',
+          localField: 'serviceId',
+          foreignField: '_id',
+          as: 'serviceInfo',
+        },
+      },
+      { $unwind: '$serviceInfo' },
+      {
+        $group: {
+          _id: '$serviceInfo.name',
+          totalAmount: { $sum: '$amount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          serviceName: '$_id',
+          totalAmount: 1,
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    currentPeriod: {
+      period,
+      totals: currentPayments,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      totals: previousPayments,
+    },
+  };
+};
+
+const getPaymentTotalByNotarizationField = async (period) => {
+  let currentStart;
+  let currentEnd;
+  let previousStart;
+  let previousEnd;
+
+  switch (period) {
+    case 'daily':
+      currentStart = moment().startOf('day').toDate();
+      currentEnd = moment().endOf('day').toDate();
+      previousStart = moment().subtract(1, 'day').startOf('day').toDate();
+      previousEnd = moment().subtract(1, 'day').endOf('day').toDate();
+      break;
+    case 'weekly':
+      currentStart = moment().startOf('week').toDate();
+      currentEnd = moment().endOf('week').toDate();
+      previousStart = moment().subtract(1, 'week').startOf('week').toDate();
+      previousEnd = moment().subtract(1, 'week').endOf('week').toDate();
+      break;
+    case 'monthly':
+      currentStart = moment().startOf('month').toDate();
+      currentEnd = moment().endOf('month').toDate();
+      previousStart = moment().subtract(1, 'month').startOf('month').toDate();
+      previousEnd = moment().subtract(1, 'month').endOf('month').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const [currentFields, previousFields] = await Promise.all([
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: currentStart, $lte: currentEnd } } },
+      {
+        $lookup: {
+          from: 'notarizationFields',
+          localField: 'fieldId',
+          foreignField: '_id',
+          as: 'fieldInfo',
+        },
+      },
+      { $unwind: '$fieldInfo' },
+      {
+        $group: {
+          _id: '$fieldInfo.name',
+          totalAmount: { $sum: '$amount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          fieldName: '$_id',
+          totalAmount: 1,
+        },
+      },
+    ]),
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: previousStart, $lte: previousEnd } } },
+      {
+        $lookup: {
+          from: 'notarizationFields',
+          localField: 'fieldId',
+          foreignField: '_id',
+          as: 'fieldInfo',
+        },
+      },
+      { $unwind: '$fieldInfo' },
+      {
+        $group: {
+          _id: '$fieldInfo.name',
+          totalAmount: { $sum: '$amount' },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          fieldName: '$_id',
+          totalAmount: 1,
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    currentPeriod: {
+      period,
+      totals: currentFields,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      totals: previousFields,
+    },
+  };
+};
+
+const getPaymentTotal = async (period) => {
   let start;
   let end;
+
   switch (period) {
     case 'daily':
       start = moment().startOf('day').toDate();
@@ -152,50 +528,34 @@ const getPaymentTotalByService = async (period) => {
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       break;
+    case 'yearly':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      break;
     default:
       throw new Error(`Invalid period: ${period}`);
   }
 
-  const paymentTotalByService = await Payment.aggregate([
+  const [currentTotal] = await Payment.aggregate([
     { $match: { createdAt: { $gte: start, $lte: end } } },
-    {
-      $lookup: {
-        from: 'notarizationServices',
-        localField: 'serviceId',
-        foreignField: '_id',
-        as: 'serviceInfo',
-      },
-    },
-    { $unwind: '$serviceInfo' },
-    {
-      $group: {
-        _id: '$serviceInfo.name',
-        totalAmount: { $sum: '$amount' },
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        serviceName: '$_id',
-        totalAmount: 1,
-      },
-    },
+    { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+    { $project: { _id: 0, totalAmount: 1 } },
   ]);
 
-  return paymentTotalByService;
+  return {
+    period,
+    totalAmount: currentTotal ? currentTotal.totalAmount : 0,
+  };
 };
 
 module.exports = {
-  getToDayDocumentCount,
-  getToDayUserCount,
-  getUserMonthly,
-  getTodayDocumentsByNotaryField,
-  getMonthDocumentsByNotaryField,
+  getDocumentCount,
+  getUserCount,
+  getDocumentsByNotaryField,
   getEmployeeCount,
   getEmployeeList,
-  getDailySessionCount,
-  getMonthlySessionCount,
-  getDailyPaymentTotal,
-  getMonthlyPaymentTotal,
+  getSessionCount,
   getPaymentTotalByService,
+  getPaymentTotalByNotarizationField,
+  getPaymentTotal,
 };
