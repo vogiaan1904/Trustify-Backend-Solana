@@ -4,7 +4,7 @@ const catchAsync = require('../utils/catchAsync');
 
 const getDocumentCount = catchAsync(async (req, res) => {
   const { period } = req.params; // Changed from req.query to req.params
-  const allowedPeriods = ['today', 'yesterday', 'this_week', 'this_month', 'this_year'];
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
   console.log(period);
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
@@ -23,7 +23,7 @@ const getDocumentCount = catchAsync(async (req, res) => {
 // Add a generic controller function
 const getUserCount = catchAsync(async (req, res) => {
   const { period } = req.params;
-  const allowedPeriods = ['today', 'yesterday', 'this_week', 'this_month', 'this_year'];
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
 
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
@@ -50,7 +50,7 @@ const getUserMonthly = async (req, res) => {
 
 const getDocumentsByNotaryField = catchAsync(async (req, res) => {
   const { period } = req.params;
-  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
 
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
@@ -72,7 +72,7 @@ const getDocumentsByNotaryField = catchAsync(async (req, res) => {
 
 const getSessionCount = catchAsync(async (req, res) => {
   const { period } = req.params;
-  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
 
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
@@ -118,7 +118,7 @@ const getPaymentTotalByNotarizationField = catchAsync(async (req, res) => {
 
 const getPaymentTotal = catchAsync(async (req, res) => {
   const { period } = req.params;
-  const allowedPeriods = ['daily', 'weekly', 'monthly', 'yearly'];
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
 
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
