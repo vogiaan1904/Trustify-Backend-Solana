@@ -20,19 +20,19 @@ const getDocumentCount = async (period) => {
       subtractValue = 1;
       subtractUnit = 'day';
       break;
-    case 'this_week':
+    case 'current_week':
       start = moment().startOf('week').toDate();
       end = moment().endOf('week').toDate();
       subtractValue = 1;
       subtractUnit = 'week';
       break;
-    case 'this_month':
+    case 'current_month':
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       subtractValue = 1;
       subtractUnit = 'month';
       break;
-    case 'this_year':
+    case 'current_year':
       start = moment().startOf('year').toDate();
       end = moment().endOf('year').toDate();
       subtractValue = 1;
@@ -82,19 +82,19 @@ const getUserCount = async (period) => {
       subtractValue = 1;
       subtractUnit = 'day';
       break;
-    case 'this_week':
+    case 'current_week':
       start = moment().startOf('week').toDate();
       end = moment().endOf('week').toDate();
       subtractValue = 1;
       subtractUnit = 'week';
       break;
-    case 'this_month':
+    case 'current_month':
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       subtractValue = 1;
       subtractUnit = 'month';
       break;
-    case 'this_year':
+    case 'current_year':
       start = moment().startOf('year').toDate();
       end = moment().endOf('year').toDate();
       subtractValue = 1;
@@ -144,25 +144,25 @@ const getDocumentsByNotaryField = async (period) => {
   let subtractUnit;
 
   switch (period) {
-    case 'daily':
+    case 'today':
       start = moment().startOf('day').toDate();
       end = moment().endOf('day').toDate();
       subtractValue = 1;
       subtractUnit = 'day';
       break;
-    case 'weekly':
+    case 'current_week':
       start = moment().startOf('week').toDate();
       end = moment().endOf('week').toDate();
       subtractValue = 1;
       subtractUnit = 'week';
       break;
-    case 'monthly':
+    case 'current_month':
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       subtractValue = 1;
       subtractUnit = 'month';
       break;
-    case 'yearly':
+    case 'current_year':
       start = moment().startOf('year').toDate();
       end = moment().endOf('year').toDate();
       subtractValue = 1;
@@ -265,25 +265,25 @@ const getSessionCount = async (period) => {
   let subtractUnit;
 
   switch (period) {
-    case 'daily':
+    case 'today':
       start = moment().startOf('day').toDate();
       end = moment().endOf('day').toDate();
       subtractValue = 1;
       subtractUnit = 'day';
       break;
-    case 'weekly':
+    case 'current_week':
       start = moment().startOf('week').toDate();
       end = moment().endOf('week').toDate();
       subtractValue = 1;
       subtractUnit = 'week';
       break;
-    case 'monthly':
+    case 'current_month':
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       subtractValue = 1;
       subtractUnit = 'month';
       break;
-    case 'yearly':
+    case 'current_year':
       start = moment().startOf('year').toDate();
       end = moment().endOf('year').toDate();
       subtractValue = 1;
@@ -330,23 +330,29 @@ const getPaymentTotalByService = async (period) => {
   let previousEnd;
 
   switch (period) {
-    case 'daily':
+    case 'today':
       currentStart = moment().startOf('day').toDate();
       currentEnd = moment().endOf('day').toDate();
       previousStart = moment().subtract(1, 'day').startOf('day').toDate();
       previousEnd = moment().subtract(1, 'day').endOf('day').toDate();
       break;
-    case 'weekly':
+    case 'current_week':
       currentStart = moment().startOf('week').toDate();
       currentEnd = moment().endOf('week').toDate();
       previousStart = moment().subtract(1, 'week').startOf('week').toDate();
       previousEnd = moment().subtract(1, 'week').endOf('week').toDate();
       break;
-    case 'monthly':
+    case 'current_month':
       currentStart = moment().startOf('month').toDate();
       currentEnd = moment().endOf('month').toDate();
       previousStart = moment().subtract(1, 'month').startOf('month').toDate();
       previousEnd = moment().subtract(1, 'month').endOf('month').toDate();
+      break;
+    case 'current_year':
+      currentStart = moment().startOf('year').toDate();
+      currentEnd = moment().endOf('year').toDate();
+      previousStart = moment().subtract(1, 'year').startOf('year').toDate();
+      previousEnd = moment().subtract(1, 'year').endOf('year').toDate();
       break;
     default:
       throw new Error(`Invalid period: ${period}`);
@@ -424,23 +430,29 @@ const getPaymentTotalByNotarizationField = async (period) => {
   let previousEnd;
 
   switch (period) {
-    case 'daily':
+    case 'today':
       currentStart = moment().startOf('day').toDate();
       currentEnd = moment().endOf('day').toDate();
       previousStart = moment().subtract(1, 'day').startOf('day').toDate();
       previousEnd = moment().subtract(1, 'day').endOf('day').toDate();
       break;
-    case 'weekly':
+    case 'current_week':
       currentStart = moment().startOf('week').toDate();
       currentEnd = moment().endOf('week').toDate();
       previousStart = moment().subtract(1, 'week').startOf('week').toDate();
       previousEnd = moment().subtract(1, 'week').endOf('week').toDate();
       break;
-    case 'monthly':
+    case 'current_month':
       currentStart = moment().startOf('month').toDate();
       currentEnd = moment().endOf('month').toDate();
       previousStart = moment().subtract(1, 'month').startOf('month').toDate();
       previousEnd = moment().subtract(1, 'month').endOf('month').toDate();
+      break;
+    case 'current_year':
+      currentStart = moment().startOf('year').toDate();
+      currentEnd = moment().endOf('year').toDate();
+      previousStart = moment().subtract(1, 'year').startOf('year').toDate();
+      previousEnd = moment().subtract(1, 'year').endOf('year').toDate();
       break;
     default:
       throw new Error(`Invalid period: ${period}`);
@@ -516,19 +528,19 @@ const getPaymentTotal = async (period) => {
   let end;
 
   switch (period) {
-    case 'daily':
+    case 'today':
       start = moment().startOf('day').toDate();
       end = moment().endOf('day').toDate();
       break;
-    case 'weekly':
+    case 'current_week':
       start = moment().startOf('week').toDate();
       end = moment().endOf('week').toDate();
       break;
-    case 'monthly':
+    case 'current_month':
       start = moment().startOf('month').toDate();
       end = moment().endOf('month').toDate();
       break;
-    case 'yearly':
+    case 'current_year':
       start = moment().startOf('year').toDate();
       end = moment().endOf('year').toDate();
       break;

@@ -54,7 +54,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [today, yesterday, this_week, this_month, this_year]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to retrieve document count and growth percentage for
  *     responses:
@@ -70,7 +70,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [today, yesterday, this_week, this_month, this_year]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "today"
  *                     documentCount:
  *                       type: integer
@@ -123,7 +123,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [today, yesterday, this_week, this_month, this_year]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to retrieve user metrics for
  *     responses:
@@ -139,7 +139,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [today, yesterday, this_week, this_month, this_year]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "daily"
  *                     userCount:
  *                       type: integer
@@ -192,7 +192,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [daily, weekly, monthly, yearly]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to filter documents by
  *     responses:
@@ -208,7 +208,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [daily, weekly, monthly, yearly]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "daily"
  *                     totals:
  *                       type: array
@@ -347,7 +347,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [daily, weekly, monthly, yearly]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to retrieve session metrics for
  *     responses:
@@ -363,7 +363,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [daily, weekly, monthly, yearly]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "daily"
  *                     sessionCount:
  *                       type: integer
@@ -416,7 +416,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [daily, weekly, monthly, yearly]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to filter payments by
  *     responses:
@@ -469,7 +469,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [daily, weekly, monthly]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to filter payments by
  *     responses:
@@ -485,7 +485,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [daily, weekly, monthly]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "daily"
  *                     totals:
  *                       type: array
@@ -545,7 +545,7 @@ module.exports = router;
  *         name: period
  *         schema:
  *           type: string
- *           enum: [daily, weekly, monthly]
+ *           enum: [today, current_week, current_month, current_year]
  *         required: true
  *         description: The period to filter payments by
  *     responses:
@@ -561,7 +561,7 @@ module.exports = router;
  *                   properties:
  *                     period:
  *                       type: string
- *                       enum: [daily, weekly, monthly]
+ *                       enum: [today, current_week, current_month, current_year]
  *                       example: "daily"
  *                     totals:
  *                       type: array
