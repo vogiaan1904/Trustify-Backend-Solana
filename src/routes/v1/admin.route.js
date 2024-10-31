@@ -406,8 +406,8 @@ module.exports = router;
  * @swagger
  * /admin/metrics/payments/{period}:
  *   get:
- *     summary: Get total payment value for a specified period
- *     description: Retrieve the total value of payments created for the specified period. Only admins can access this information.
+ *     summary: Get total payment value and growth percent for a specified period
+ *     description: Retrieve the total value of payments and growth percentage based on the specified period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
@@ -418,7 +418,7 @@ module.exports = router;
  *           type: string
  *           enum: [today, current_week, current_month, current_year]
  *         required: true
- *         description: The period to filter payments by
+ *         description: The period to retrieve payment metrics for
  *     responses:
  *       "200":
  *         description: Successful operation
@@ -427,12 +427,27 @@ module.exports = router;
  *             schema:
  *               type: object
  *               properties:
- *                 period:
- *                   type: string
- *                   example: "daily"
- *                 totalAmount:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "today"
+ *                     totalAmount:
+ *                       type: number
+ *                       example: 1000
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_today"
+ *                     totalAmount:
+ *                       type: number
+ *                       example: 800
+ *                 growthPercent:
  *                   type: number
- *                   example: 1000
+ *                   example: 25
  *       "400":
  *         description: Bad Request - Invalid period parameter
  *         content:

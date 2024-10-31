@@ -118,7 +118,7 @@ const getPaymentTotalByNotarizationField = catchAsync(async (req, res) => {
 
 const getPaymentTotal = catchAsync(async (req, res) => {
   const { period } = req.params;
-  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
+  const allowedPeriods = ['today', 'yesterday', 'current_week', 'current_month', 'current_year'];
 
   if (!allowedPeriods.includes(period)) {
     return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });

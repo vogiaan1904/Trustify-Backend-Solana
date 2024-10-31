@@ -524,39 +524,75 @@ const getPaymentTotalByNotarizationField = async (period) => {
 };
 
 const getPaymentTotal = async (period) => {
-  let start;
-  let end;
+  let currentStart;
+  let currentEnd;
+  let subtractValue;
+  let subtractUnit;
 
   switch (period) {
     case 'today':
-      start = moment().startOf('day').toDate();
-      end = moment().endOf('day').toDate();
+      currentStart = moment().startOf('day').toDate();
+      currentEnd = moment().endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
+      break;
+    case 'yesterday':
+      currentStart = moment().subtract(1, 'day').startOf('day').toDate();
+      currentEnd = moment().subtract(1, 'day').endOf('day').toDate();
+      subtractValue = 1;
+      subtractUnit = 'day';
       break;
     case 'current_week':
-      start = moment().startOf('week').toDate();
-      end = moment().endOf('week').toDate();
+      currentStart = moment().startOf('week').toDate();
+      currentEnd = moment().endOf('week').toDate();
+      subtractValue = 1;
+      subtractUnit = 'week';
       break;
     case 'current_month':
-      start = moment().startOf('month').toDate();
-      end = moment().endOf('month').toDate();
+      currentStart = moment().startOf('month').toDate();
+      currentEnd = moment().endOf('month').toDate();
+      subtractValue = 1;
+      subtractUnit = 'month';
       break;
     case 'current_year':
-      start = moment().startOf('year').toDate();
-      end = moment().endOf('year').toDate();
+      currentStart = moment().startOf('year').toDate();
+      currentEnd = moment().endOf('year').toDate();
+      subtractValue = 1;
+      subtractUnit = 'year';
       break;
     default:
       throw new Error(`Invalid period: ${period}`);
   }
 
-  const [currentTotal] = await Payment.aggregate([
-    { $match: { createdAt: { $gte: start, $lte: end } } },
-    { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
-    { $project: { _id: 0, totalAmount: 1 } },
+  const previousStart = moment(currentStart).subtract(subtractValue, subtractUnit).toDate();
+  const previousEnd = moment(currentEnd).subtract(subtractValue, subtractUnit).toDate();
+
+  const [currentTotalResult, previousTotalResult] = await Promise.all([
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: currentStart, $lte: currentEnd } } },
+      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+    ]),
+    Payment.aggregate([
+      { $match: { createdAt: { $gte: previousStart, $lte: previousEnd } } },
+      { $group: { _id: null, totalAmount: { $sum: '$amount' } } },
+    ]),
   ]);
 
+  const currentTotal = currentTotalResult.length > 0 ? currentTotalResult[0].totalAmount : 0;
+  const previousTotal = previousTotalResult.length > 0 ? previousTotalResult[0].totalAmount : 0;
+
+  const growthPercent = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : 100;
+
   return {
-    period,
-    totalAmount: currentTotal ? currentTotal.totalAmount : 0,
+    currentPeriod: {
+      period,
+      totalAmount: currentTotal,
+    },
+    previousPeriod: {
+      period: `previous_${period}`,
+      totalAmount: previousTotal,
+    },
+    growthPercent,
   };
 };
 
