@@ -466,6 +466,44 @@ const approveSignatureBySecretary = async (documentId, userId) => {
   }
 };
 
+const autoForwardPendingToVerification = async () => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+
+    // Find documents with status 'pending' and updatedAt older than 1 minute ago
+    const pendingDocuments = await StatusTracking.find({
+      status: 'pending',
+      updatedAt: { $lte: oneMinuteAgo },
+    });
+
+    const updatePromises = pendingDocuments.map(async (tracking) => {
+      // Update status to 'verification'
+      const updatedTracking = {
+        ...tracking.toObject(),
+        status: 'verification',
+        updatedAt: new Date(),
+      };
+      await StatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+
+      // Record the status change in ApproveHistory
+      const approveHistory = new ApproveHistory({
+        userId: null,
+        documentId: tracking.documentId,
+        beforeStatus: 'pending',
+        afterStatus: 'verification',
+        updatedAt: new Date(),
+      });
+      await approveHistory.save();
+    });
+
+    console.log(`Auto-forwarded ${updatePromises.length} documents from 'pending' to 'verification' status`);
+
+    await Promise.all(updatePromises);
+  } catch (error) {
+    console.error('Error auto-forwarding documents:', error.message);
+  }
+};
+
 module.exports = {
   createDocument,
   createStatusTracking,
@@ -478,4 +516,5 @@ module.exports = {
   approveSignatureByUser,
   approveSignatureBySecretary,
   getHistoryWithStatus,
+  autoForwardPendingToVerification,
 };
