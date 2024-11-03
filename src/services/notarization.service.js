@@ -50,24 +50,24 @@ const createDocument = async (documentBody, files, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service does not match the provided field');
     }
 
-    if (notarizationFieldDoc.name !== notarizationField.name) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field name does not match');
-    }
+    // if (notarizationFieldDoc.name !== notarizationField.name) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field name does not match');
+    // }
 
-    if (notarizationFieldDoc.description !== notarizationField.description) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field description does not match');
-    }
-    if (notarizationServiceDoc.name !== notarizationService.name) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name does not match');
-    }
+    // if (notarizationFieldDoc.description !== notarizationField.description) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field description does not match');
+    // }
+    // if (notarizationServiceDoc.name !== notarizationService.name) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name does not match');
+    // }
 
-    if (notarizationServiceDoc.description !== notarizationService.description) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service description does not match');
-    }
+    // if (notarizationServiceDoc.description !== notarizationService.description) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service description does not match');
+    // }
 
-    if (notarizationServiceDoc.price !== notarizationService.price) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service price does not match');
-    }
+    // if (notarizationServiceDoc.price !== notarizationService.price) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service price does not match');
+    // }
 
     const newDocument = new Document({
       files: [],
@@ -84,6 +84,7 @@ const createDocument = async (documentBody, files, userId) => {
         description: notarizationField.description,
       },
       requesterInfo: {
+        fullName: requesterInfo.fullName,
         citizenId: requesterInfo.citizenId,
         phoneNumber: requesterInfo.phoneNumber,
         email: requesterInfo.email,

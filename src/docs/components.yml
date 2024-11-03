@@ -66,12 +66,14 @@ components:
               firebaseUrl:
                 type: string
         notaryService:
-          type: string
+          $ref: '#/components/schemas/NotarizationService'
         notaryField:
-          type: string
+          $ref: '#/components/schemas/NotarizationField'
         requesterInfo:
           type: object
           properties:
+            fullName:
+              type: string
             citizenId:
               type: string
             phoneNumber:
