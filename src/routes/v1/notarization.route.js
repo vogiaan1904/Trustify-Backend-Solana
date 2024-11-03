@@ -25,39 +25,6 @@ const upload = multer({
 
 /**
  * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- *       description: 'JWT authorization header. Use `Bearer <token>` format.'
- *
- *   responses:
- *     BadRequest:
- *       description: Bad Request
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: Invalid request parameters
- *     Unauthorized:
- *       description: Unauthorized access
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: Unauthorized
- */
-
-/**
- * @swagger
  * tags:
  *   name: Notarizations
  *   description: Notarization document management API
@@ -192,6 +159,10 @@ router
  *               requesterInfo:
  *                 type: object
  *                 properties:
+ *                   fullName:
+ *                     type: string
+ *                     description: Full name of the requester
+ *                     example: "John Doe"
  *                   citizenId:
  *                     type: string
  *                     description: Citizen ID of the requester
@@ -210,67 +181,7 @@ router
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 _id:
- *                   type: string
- *                   description: Document ID
- *                   example: "60d5ec49f2c1f814d3e8e3c9"
- *                 files:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       filename:
- *                         type: string
- *                         description: Name of the uploaded file
- *                         example: "file1.pdf"
- *                       firebaseUrl:
- *                         type: string
- *                         description: URL of the file in Firebase
- *                         example: "https://firebase.com/path/to/file1.pdf"
- *                 notarizationService:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       example: "60d5ec49f2c1f814d3e8e3c5"
- *                     name:
- *                       type: string
- *                       example: "Property Deed Notarization"
- *                     fieldId:
- *                       type: string
- *                       example: "60d5ec49f2c1f814d3e8e3c6"
- *                     description:
- *                       type: string
- *                       example: "Notarization for property deed transfer."
- *                     price:
- *                       type: number
- *                       example: 150.00
- *                 notarizationField:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       example: "60d5ec49f2c1f814d3e8e3c7"
- *                     name:
- *                       type: string
- *                       example: "Real Estate"
- *                     description:
- *                       type: string
- *                       example: "Field related to real estate transactions."
- *                 requesterInfo:
- *                   type: object
- *                   properties:
- *                     citizenId:
- *                       type: string
- *                       example: "123456789"
- *                     phoneNumber:
- *                       type: string
- *                       example: "+1234567890"
- *                     email:
- *                       type: string
- *                       example: "requester@example.com"
+ *               $ref: '#/components/schemas/Notarizations'
  *       "400":
  *         description: Bad Request - Invalid data provided
  *         content:

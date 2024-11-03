@@ -57,6 +57,10 @@ const documentSchema = new mongoose.Schema({
     },
   },
   requesterInfo: {
+    fullName: {
+      type: String,
+      required: true,
+    },
     citizenId: {
       type: String,
       required: true,
