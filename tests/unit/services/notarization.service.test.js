@@ -3,7 +3,7 @@ const notarizationService = require('../../../src/services/notarization.service'
 const ApiError = require('../../../src/utils/ApiError');
 const httpStatus = require('http-status');
 const { bucket } = require('../../../src/config/firebase');
-const mockFirebase = require('./firebase.mock');
+const mockFirebase = require('../controllers/firebase.mock');
 const setupTestDB = require('../../utils/setupTestDB');
 
 setupTestDB();
