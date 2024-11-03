@@ -2,7 +2,7 @@ const httpStatus = require('http-status');
 const mongoose = require('mongoose');
 const { Session, User } = require('../models');
 const ApiError = require('../utils/ApiError');
-const { userService } = require('.');
+const { userService, notarizationService } = require('.');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -243,6 +243,94 @@ const getSessionBySessionId = async (sessionId, userId) => {
   return session;
 };
 
+const uploadSessionDocument = async (sessionId, userId, files) => {
+  try {
+    if (!files || files.length === 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+    console.log(userId);
+
+    const isSessionUser = session.users.some((u) => u._id.equals(userId)) || session.createdBy.equals(userId);
+    if (!isSessionUser) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
+    }
+
+    const fileUrls = await Promise.all(
+      files.map((file) => notarizationService.uploadFileToFirebase(file, 'sessionDocuments', sessionId))
+    );
+
+    if (!session.files) {
+      session.files = [];
+    }
+
+    const newFiles = fileUrls.map((url, index) => ({
+      filename: `${Date.now()}-${files[index].originalname}-by-${userId}`,
+      firebaseUrl: url,
+      createAt: new Date(),
+    }));
+
+    session.files.push(...newFiles);
+    await session.save();
+
+    return {
+      message: 'Files uploaded successfully',
+      uploadedFiles: newFiles,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error uploading files to session:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while uploading files');
+  }
+};
+
+const sendSessionForNotarization = async (sessionId, userId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    if (session.createdBy.toString() !== userId.toString()) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Only the session creator can send for notarization');
+    }
+
+    if (session.documents.length === 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'No documents to send for notarization');
+    }
+
+    const notarizationResult = await notarizationService.notarizeDocuments(session.documents);
+    if (!notarizationResult) {
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to notarize documents');
+    }
+
+    return {
+      message: 'Session sent for notarization successfully',
+      notarizationResult,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error sending session for notarization:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while sending session for notarization');
+  }
+};
+
 module.exports = {
   validateEmails,
   findBySessionId,
@@ -258,4 +346,6 @@ module.exports = {
   isValidMonth,
   getSessionsByUserId,
   getSessionBySessionId,
+  uploadSessionDocument,
+  sendSessionForNotarization,
 };

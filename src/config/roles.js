@@ -12,6 +12,7 @@ const allRoles = {
     'searchUserByEmail',
     'getSessionsByUserId',
     'getSessionBySessionId',
+    'uploadSessionDocument',
   ],
   admin: [
     'getUsers',

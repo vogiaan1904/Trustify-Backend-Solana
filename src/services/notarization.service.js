@@ -15,13 +15,13 @@ const generateOrderCode = () => {
   return Math.floor(Math.random() * MAX_ORDER_CODE) + 1;
 };
 
-const uploadFileToFirebase = async (file, folderName) => {
+const uploadFileToFirebase = async (file, rootFolder, folderName) => {
   const fileName = `${Date.now()}-${file.originalname}`;
-  const fileRef = bucket.file(`${folderName}/${fileName}`);
+  const fileRef = bucket.file(`${rootFolder}/${folderName}/${fileName}`);
 
   try {
     await fileRef.save(file.buffer, { contentType: file.mimetype });
-    return `https://storage.googleapis.com/${bucket.name}/${folderName}/${fileName}`;
+    return `https://storage.googleapis.com/${bucket.name}/${rootFolder}/${folderName}/${fileName}`;
   } catch (error) {
     console.error('Error uploading file:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload file');
@@ -92,7 +92,7 @@ const createDocument = async (documentBody, files, userId) => {
       createdAt: Date.now(),
     });
 
-    const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, newDocument._id)));
+    const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
     const formattedFiles = files.map((file, index) => ({
       filename: `${Date.now()}-${file.originalname}`,
       firebaseUrl: fileUrls[index],
@@ -384,13 +384,6 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has not approved the document yet');
     }
 
-    requestSignature.approvalStatus.secretary = {
-      approved: true,
-      approvedAt: new Date(),
-    };
-
-    await requestSignature.save();
-
     const document = await Document.findById(documentId);
     if (!document) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Document not found');
@@ -451,6 +444,13 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       afterStatus: 'completed',
     });
 
+    requestSignature.approvalStatus.secretary = {
+      approved: true,
+      approvedAt: new Date(),
+    };
+
+    await requestSignature.save();
+
     await approveHistory.save();
     return {
       message: 'Secretary approved and signed the document successfully',
@@ -466,6 +466,7 @@ const approveSignatureBySecretary = async (documentId, userId) => {
 };
 
 module.exports = {
+  uploadFileToFirebase,
   createDocument,
   createStatusTracking,
   getHistoryByUserId,

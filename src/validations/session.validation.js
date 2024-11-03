@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { objectId } = require('./custom.validation');
 
 const createSession = {
   body: Joi.object().keys({
@@ -68,6 +69,15 @@ const getSessionBySessionId = {
     sessionId: Joi.string().required(),
   }),
 };
+const uploadSessionDocument = {
+  params: Joi.object().keys({
+    sessionId: Joi.string().required(),
+  }),
+  body: Joi.object().keys({
+    files: Joi.array().items(Joi.string()).required(),
+    userId: Joi.string().custom(objectId),
+  }),
+};
 
 module.exports = {
   createSession,
@@ -77,4 +87,5 @@ module.exports = {
   getSessionsByDate,
   getSessionsByMonth,
   getSessionBySessionId,
+  uploadSessionDocument,
 };

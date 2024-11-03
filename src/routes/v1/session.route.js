@@ -1,10 +1,27 @@
 const express = require('express');
+const multer = require('multer');
+const httpStatus = require('http-status');
 const auth = require('../../middlewares/auth');
 const validate = require('../../middlewares/validate');
 const sessionValidation = require('../../validations/session.validation');
 const sessionController = require('../../controllers/session.controller');
+const ApiError = require('../../utils/ApiError');
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedFileTypes = /jpeg|jpg|png|pdf/;
+    const mimeType = allowedFileTypes.test(file.mimetype);
+    const extname = allowedFileTypes.test(file.originalname.split('.').pop());
+
+    if (mimeType && extname) {
+      return cb(null, true);
+    }
+    cb(new ApiError(httpStatus.BAD_REQUEST, 'Only images and PDFs are allowed'));
+  },
+});
 
 /**
  * @swagger
@@ -96,6 +113,17 @@ router
     validate(sessionValidation.getSessionBySessionId),
     sessionController.getSessionBySessionId
   );
+
+router.route('/uploadSessionDocument/:sessionId').post(
+  auth('uploadSessionDocument'),
+  upload.array('files'),
+  (req, res, next) => {
+    req.body.files = req.files.map((file) => file.originalname);
+    next();
+  },
+  validate(sessionValidation.uploadSessionDocument),
+  sessionController.uploadSessionDocument
+);
 
 /**
  * @swagger
@@ -983,6 +1011,102 @@ router
  *                 message:
  *                   type: string
  *                   example: "Failed to retrieve sessions"
+ */
+
+/**
+ * @swagger
+ * /session/uploadSessionDocument/{sessionId}:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Upload documents to a session
+ *     description: Uploads files to a specific session and returns URLs of the uploaded files.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session to upload documents to.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: The files to be uploaded. Supports multiple files.
+ *
+ *     responses:
+ *       '200':
+ *         description: Successfully uploaded documents to the session.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Files uploaded successfully"
+ *                 uploadedFiles:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       filename:
+ *                         type: string
+ *                         example: "1633972176823-document.pdf"
+ *                       firebaseUrl:
+ *                         type: string
+ *                         example: "https://storage.googleapis.com/bucket-name/folder-name/1633972176823-document.pdf"
+ *
+ *       '400':
+ *         description: Bad request. Session ID is invalid or no files are provided.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No files provided"
+ *       '403':
+ *         description: Forbidden. User is not part of this session.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "User is not part of this session"
+ *       '404':
+ *         description: Not found. Session or user not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while uploading files"
  */
 
 module.exports = router;
