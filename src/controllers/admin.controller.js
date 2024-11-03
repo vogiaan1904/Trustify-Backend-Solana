@@ -138,5 +138,5 @@ module.exports = {
   getSessionCount,
   getPaymentTotalByService,
   getPaymentTotalByNotarizationField,
-  getPaymentTotal, // Newly added
+  getPaymentTotal,
 };
