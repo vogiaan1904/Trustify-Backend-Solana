@@ -38,7 +38,6 @@ router.route('/upload-files').post(
     req.body.notarizationService = JSON.parse(req.body.notarizationService);
     req.body.notarizationField = JSON.parse(req.body.notarizationField);
     req.body.requesterInfo = JSON.parse(req.body.requesterInfo);
-    console.log('Parsed body:', req.body);
 
     req.body.files = req.files.map((file) => file.originalname);
 
