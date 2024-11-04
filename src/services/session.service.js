@@ -124,9 +124,9 @@ const joinSession = async (sessionId, action, userId) => {
   return session;
 };
 
-const getAllSessions = async () => {
+const getAllSessions = async (filter, options) => {
   try {
-    const sessions = await Session.find();
+    const sessions = await Session.paginate(filter, options);
     if (sessions.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'No sessions found');
     }
