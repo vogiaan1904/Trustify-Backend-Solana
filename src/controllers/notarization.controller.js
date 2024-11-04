@@ -95,9 +95,10 @@ const getApproveHistory = catchAsync(async (req, res) => {
 });
 
 const getAllNotarizations = catchAsync(async (req, res) => {
+  const filter = {};
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
-  const notarizations = await notarizationService.getAllNotarizations({}, options);
-  res.send(notarizations);
+  const notarizations = await notarizationService.getAllNotarizations(filter, options);
+  res.status(httpStatus.OK).send(notarizations);
 });
 
 const approveSignatureByUser = catchAsync(async (req, res) => {
