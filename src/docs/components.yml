@@ -97,6 +97,8 @@ components:
           createdAt:
             type: string
             format: date-time
+          status:
+            type: string
     Session:
       type: object
       properties:

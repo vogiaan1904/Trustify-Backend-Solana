@@ -314,8 +314,51 @@ const getApproveHistory = async (userId) => {
 };
 
 const getAllNotarizations = async (filter, options) => {
-  const notarizations = await Document.paginate(filter, options);
-  return notarizations;
+  // Apply default options if not provided
+  const page = options.page ? parseInt(options.page, 10) : 1;
+  const limit = options.limit ? parseInt(options.limit, 10) : 10;
+  const skip = (page - 1) * limit;
+  const sortBy = options.sortBy || 'createdAt';
+
+  const documents = await Document.aggregate([
+    { $match: filter },
+    {
+      $lookup: {
+        from: 'statustrackings',
+        let: { documentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$documentId', '$$documentId'] } } },
+          { $sort: { updatedAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: 'status',
+      },
+    },
+    {
+      $addFields: {
+        status: { $arrayElemAt: ['$status', 0] },
+      },
+    },
+    {
+      $sort: { [sortBy]: -1 },
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    },
+  ]);
+
+  const totalDocuments = await Document.countDocuments(filter);
+
+  return {
+    results: documents,
+    page,
+    limit,
+    totalPages: Math.ceil(totalDocuments / limit),
+    totalResults: totalDocuments,
+  };
 };
 
 const approveSignatureByUser = async (documentId, amount, signatureImage) => {
