@@ -314,8 +314,8 @@ const getApproveHistory = async (userId) => {
 };
 
 const getAllNotarizations = async (filter, options) => {
-  const notatizations = await Document.paginate(filter, options);
-  return notatizations;
+  const notarizations = await Document.paginate(filter, options);
+  return notarizations;
 };
 
 const approveSignatureByUser = async (documentId, amount, signatureImage) => {

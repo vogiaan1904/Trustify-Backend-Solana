@@ -244,60 +244,7 @@ router
  *       - bearerAuth: []
  *     responses:
  *       "200":
- *         description: Successfully retrieved documents for the specified role
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 requesterInfo:
- *                   type: object
- *                   properties:
- *                     citizenId:
- *                       type: string
- *                       example: "123456789012"
- *                     phoneNumber:
- *                       type: string
- *                       example: "941788455"
- *                     email:
- *                       type: string
- *                       example: "123@gmail.com"
- *                 _id:
- *                   type: string
- *                   example: "66f516c6df00763b8878bb89"
- *                 notaryService:
- *                   type: string
- *                   example: "Example Notary Service"
- *                 notaryField:
- *                   type: string
- *                   example: "Example Notary Field"
- *                 userId:
- *                   type: string
- *                   example: "66f46255529f780cf0b20d3e"
- *                 files:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         example: "66f516c6df00763b8878bb8b"
- *                       filename:
- *                         type: string
- *                         example: "1727338182964-search-interface-symbol.png"
- *                       firebaseUrl:
- *                         type: string
- *                         example: "https://storage.googleapis.com/congchungonline-6692e.appspot.com/66f516c6df00763b8878bb89/1727338182108-search-interface-symbol.png"
- *                 createdAt:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-09-26T08:09:42.039Z"
- *                 __v:
- *                   type: integer
- *                   example: 1
- *                 status:
- *                   type: string
- *                   example: "processing"
+ *         $ref: '#/components/responses/Notarizations'
  *       "400":
  *         $ref: '#/components/responses/BadRequest'
  *       "401":

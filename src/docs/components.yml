@@ -94,6 +94,9 @@ components:
             - digitalSignature
             - completed
             - rejected
+          createdAt:
+            type: string
+            format: date-time
     Session:
       type: object
       properties:
