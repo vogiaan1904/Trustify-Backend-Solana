@@ -314,10 +314,10 @@ const getApproveHistory = async (userId) => {
 };
 
 const getAllNotarizations = async (filter, options) => {
-  // Apply default options if not provided
-  const page = options.page ? parseInt(options.page, 10) : 1;
-  const limit = options.limit ? parseInt(options.limit, 10) : 10;
+  const page = options.page && options.page > 0 ? parseInt(options.page, 10) : 1;
+  const limit = options.limit && options.limit > 0 ? parseInt(options.limit, 10) : 10;
   const skip = (page - 1) * limit;
+
   const sortBy = options.sortBy || 'createdAt';
 
   const documents = await Document.aggregate([
