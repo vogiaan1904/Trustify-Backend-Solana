@@ -219,11 +219,25 @@ const getActiveSessions = async () => {
 };
 
 const getSessionsByUserId = async (userId) => {
-  const sessions = await Session.find({ createdBy: userId });
-  if (sessions.length === 0) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
+  try {
+    const user = await userService.getUserById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    const sessions = await Session.find({ createdBy: userId });
+
+    const joinedSessions = await Session.find({ 'users.email': user.email });
+
+    const allSessions = [...sessions, ...joinedSessions];
+
+    if (allSessions.length === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
+    }
+    return allSessions;
+  } catch (err) {
+    console.error('Error retrieving sessions by user ID:', err);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving sessions');
   }
-  return sessions;
 };
 
 const getSessionBySessionId = async (sessionId, userId) => {
@@ -257,9 +271,13 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
     if (!session) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
-    console.log(userId);
 
-    const isSessionUser = session.users.some((u) => u._id.equals(userId)) || session.createdBy.equals(userId);
+    const user = await userService.getUserById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+
+    const isSessionUser = session.users.some((u) => u.email === user.email) || session.createdBy.equals(userId);
     if (!isSessionUser) {
       throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
     }
