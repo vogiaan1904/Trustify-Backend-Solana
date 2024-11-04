@@ -114,7 +114,7 @@ router
     sessionController.getSessionBySessionId
   );
 
-router.route('/uploadSessionDocument/:sessionId').post(
+router.route('/upload-session-document/:sessionId').post(
   auth('uploadSessionDocument'),
   upload.array('files'),
   (req, res, next) => {
@@ -124,6 +124,14 @@ router.route('/uploadSessionDocument/:sessionId').post(
   validate(sessionValidation.uploadSessionDocument),
   sessionController.uploadSessionDocument
 );
+
+router
+  .route('/send-session-for-notarization/:sessionId')
+  .post(
+    auth('sendSessionForNotarization'),
+    validate(sessionValidation.sendSessionForNotarization),
+    sessionController.sendSessionForNotarization
+  );
 
 /**
  * @swagger
@@ -1015,7 +1023,7 @@ router.route('/uploadSessionDocument/:sessionId').post(
 
 /**
  * @swagger
- * /session/uploadSessionDocument/{sessionId}:
+ * /session/upload-session-document/{sessionId}:
  *   post:
  *     security:
  *       - bearerAuth: []
@@ -1107,6 +1115,138 @@ router.route('/uploadSessionDocument/:sessionId').post(
  *                 message:
  *                   type: string
  *                   example: "An error occurred while uploading files"
+ */
+
+/**
+ * @swagger
+ * /session/send-session-for-notarization/{sessionId}:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Send session for notarization
+ *     description: Sends a session for notarization if it meets the required criteria, such as having files attached and being requested by the session creator.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session to be sent for notarization.
+ *     responses:
+ *       '200':
+ *         description: Successfully sent session for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session sent for notarization successfully"
+ *                 session:
+ *                   type: object
+ *                   properties:
+ *                     sessionId:
+ *                       type: string
+ *                       example: "123456789"
+ *                     notaryField:
+ *                       type: object
+ *                       example: {"fieldName": "Sample Field"}
+ *                     notaryService:
+ *                       type: object
+ *                       example: {"serviceName": "Sample Service"}
+ *                     sessionName:
+ *                       type: string
+ *                       example: "Sample Session Name"
+ *                     startTime:
+ *                       type: string
+ *                       example: "10:00 AM"
+ *                     startDate:
+ *                       type: string
+ *                       format: date
+ *                       example: "2024-01-01"
+ *                     endTime:
+ *                       type: string
+ *                       example: "11:00 AM"
+ *                     endDate:
+ *                       type: string
+ *                       format: date
+ *                       example: "2024-01-01"
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           email:
+ *                             type: string
+ *                             example: "user@example.com"
+ *                           status:
+ *                             type: string
+ *                             enum: [pending, accepted, rejected]
+ *                             example: "pending"
+ *                     createdBy:
+ *                       type: string
+ *                       example: "609dcd123b5f3b001d9e4567"
+ *                     files:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           filename:
+ *                             type: string
+ *                             example: "document.pdf"
+ *                           firebaseUrl:
+ *                             type: string
+ *                             example: "https://example.com/document.pdf"
+ *                           createAt:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2024-01-01T10:00:00Z"
+ *                 status:
+ *                   type: string
+ *                   example: "pending"
+ *       '400':
+ *         description: Bad request. Possible issues include invalid session ID or no documents attached.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid session ID or No documents to send for notarization"
+ *       '403':
+ *         description: Forbidden. The user is not authorized to send this session for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Only the session creator can send for notarization"
+ *       '404':
+ *         description: Not found. The specified session could not be located.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while sending session for notarization"
  */
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
-const { Session, User } = require('../models');
+const { Session, User, SessionStatusTracking } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
 
@@ -294,6 +294,22 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
   }
 };
 
+const createSessionStatusTracking = async (sessionId, status) => {
+  try {
+    const statusTracking = new SessionStatusTracking({
+      sessionId,
+      status,
+      updatedAt: new Date(),
+    });
+
+    await statusTracking.save();
+    return statusTracking;
+  } catch (error) {
+    console.error('Error creating status tracking:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create status tracking');
+  }
+};
+
 const sendSessionForNotarization = async (sessionId, userId) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
@@ -309,18 +325,16 @@ const sendSessionForNotarization = async (sessionId, userId) => {
       throw new ApiError(httpStatus.FORBIDDEN, 'Only the session creator can send for notarization');
     }
 
-    if (session.documents.length === 0) {
+    if (session.files.length === 0) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No documents to send for notarization');
     }
 
-    const notarizationResult = await notarizationService.notarizeDocuments(session.documents);
-    if (!notarizationResult) {
-      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to notarize documents');
-    }
+    const sessionStatusTracking = await createSessionStatusTracking(sessionId, 'pending');
 
     return {
       message: 'Session sent for notarization successfully',
-      notarizationResult,
+      session,
+      status: sessionStatusTracking.status,
     };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -348,4 +362,5 @@ module.exports = {
   getSessionBySessionId,
   uploadSessionDocument,
   sendSessionForNotarization,
+  createSessionStatusTracking,
 };

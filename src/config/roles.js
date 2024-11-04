@@ -13,6 +13,7 @@ const allRoles = {
     'getSessionsByUserId',
     'getSessionBySessionId',
     'uploadSessionDocument',
+    'sendSessionForNotarization',
   ],
   admin: [
     'getUsers',
