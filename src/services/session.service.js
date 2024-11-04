@@ -282,6 +282,11 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
       throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
     }
 
+    const isUserAccepted = session.users.some((u) => u.email === user.email && u.status === 'accepted');
+    if (!isUserAccepted) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'User is not accepted as part of this session');
+    }
+
     const existingStatus = await SessionStatusTracking.findOne({ sessionId });
     if (existingStatus) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
