@@ -105,6 +105,12 @@ const sendSessionForNotarization = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(session);
 });
 
+const getSessionStatus = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const sessionStatusTracking = await sessionService.getSessionStatus(sessionId);
+  res.status(httpStatus.OK).send(sessionStatusTracking);
+});
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -118,4 +124,5 @@ module.exports = {
   getSessionBySessionId,
   uploadSessionDocument,
   sendSessionForNotarization,
+  getSessionStatus,
 };

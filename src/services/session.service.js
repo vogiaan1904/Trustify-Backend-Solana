@@ -264,6 +264,11 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
       throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
     }
 
+    const existingStatus = await SessionStatusTracking.findOne({ sessionId });
+    if (existingStatus) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
+    }
+
     const fileUrls = await Promise.all(
       files.map((file) => notarizationService.uploadFileToFirebase(file, 'sessionDocuments', sessionId))
     );
@@ -329,6 +334,11 @@ const sendSessionForNotarization = async (sessionId, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No documents to send for notarization');
     }
 
+    const existingStatus = await SessionStatusTracking.findOne({ sessionId });
+    if (existingStatus) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
+    }
+
     const sessionStatusTracking = await createSessionStatusTracking(sessionId, 'pending');
 
     return {
@@ -342,6 +352,34 @@ const sendSessionForNotarization = async (sessionId, userId) => {
     }
     console.error('Error sending session for notarization:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while sending session for notarization');
+  }
+};
+
+const getSessionStatus = async (sessionId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    const status = await SessionStatusTracking.findOne({ sessionId });
+    if (!status) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not ready for notarization');
+    }
+
+    return {
+      status,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error retrieving session status:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving session status');
   }
 };
 
@@ -363,4 +401,5 @@ module.exports = {
   uploadSessionDocument,
   sendSessionForNotarization,
   createSessionStatusTracking,
+  getSessionStatus,
 };

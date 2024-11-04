@@ -127,12 +127,9 @@ router.route('/upload-session-document/:sessionId').post(
 
 router
   .route('/send-session-for-notarization/:sessionId')
-  .post(
-    auth('sendSessionForNotarization'),
-    validate(sessionValidation.sendSessionForNotarization),
-    sessionController.sendSessionForNotarization
-  );
+  .post(auth('sendSessionForNotarization'), sessionController.sendSessionForNotarization);
 
+router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), sessionController.getSessionStatus);
 /**
  * @swagger
  * /session/createSession:
@@ -1247,6 +1244,79 @@ router
  *                 message:
  *                   type: string
  *                   example: "An error occurred while sending session for notarization"
+ */
+
+/**
+ * @swagger
+ * /session/get-session-status/{sessionId}:
+ *   get:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Retrieve session notarization status
+ *     description: Gets the notarization status of a specified session if it has been sent for notarization.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session for which to retrieve notarization status.
+ *     responses:
+ *       '200':
+ *         description: Successfully retrieved the session notarization status.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123456789"
+ *                     sessionId:
+ *                       type: string
+ *                       example: "123456789"
+ *                     status:
+ *                       type: string
+ *                       example: "notarized"
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-01T11:00:00Z"
+ *       '400':
+ *         description: Bad request. Invalid session ID format.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid session ID"
+ *       '404':
+ *         description: Not found. The session is either not found or not yet sent for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found or not ready for notarization"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while retrieving session status"
  */
 
 module.exports = router;
