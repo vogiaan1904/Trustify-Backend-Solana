@@ -125,13 +125,47 @@ const joinSession = async (sessionId, action, userId) => {
 };
 
 const getAllSessions = async (filter, options) => {
+  const { page, limit } = options;
+
   try {
-    const sessions = await Session.paginate(filter, options);
-    if (sessions.length === 0) {
+    const sessions = await Session.find(filter);
+
+    if (!sessions || sessions.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'No sessions found');
     }
-    return sessions;
+
+    const sessionCreators = await Promise.all(
+      sessions.map(async (session) => {
+        const creator = await userService.getUserById(session.createdBy);
+        return {
+          _id: session._id,
+          sessionName: session.sessionName,
+          notaryField: session.notaryField,
+          notaryService: session.notaryService,
+          startTime: session.startTime,
+          startDate: session.startDate,
+          endTime: session.endTime,
+          endDate: session.endDate,
+          users: session.users,
+          files: session.files,
+          creator: creator ? { _id: creator._id, email: creator.email, name: creator.name } : null,
+        };
+      })
+    );
+
+    const totalResults = sessionCreators.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedResults = sessionCreators.slice((page - 1) * limit, page * limit);
+
+    return {
+      results: paginatedResults,
+      page,
+      limit,
+      totalPages,
+      totalResults,
+    };
   } catch (error) {
+    console.error('Error retrieving all sessions:', error);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving sessions');
   }
 };
@@ -224,16 +258,28 @@ const getSessionsByUserId = async (userId) => {
     if (!user) {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
-    const sessions = await Session.find({ createdBy: userId });
 
-    const joinedSessions = await Session.find({ 'users.email': user.email });
+    const sessionsCreated = await Session.find({ createdBy: userId }).lean();
 
-    const allSessions = [...sessions, ...joinedSessions];
+    const joinedSessions = await Session.find({ 'users.email': user.email }).lean();
+
+    const allSessions = [...sessionsCreated, ...joinedSessions];
 
     if (allSessions.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
     }
-    return allSessions;
+
+    const sessionCreators = await Promise.all(
+      allSessions.map(async (session) => {
+        const creator = await userService.getUserById(session.createdBy);
+        return {
+          ...session,
+          creator: creator ? { _id: creator._id, email: creator.email, name: creator.name } : null,
+        };
+      })
+    );
+
+    return { results: sessionCreators };
   } catch (err) {
     console.error('Error retrieving sessions by user ID:', err);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving sessions');
