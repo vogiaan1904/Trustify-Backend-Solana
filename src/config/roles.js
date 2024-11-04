@@ -12,6 +12,9 @@ const allRoles = {
     'searchUserByEmail',
     'getSessionsByUserId',
     'getSessionBySessionId',
+    'uploadSessionDocument',
+    'sendSessionForNotarization',
+    'getSessionStatus',
   ],
   admin: [
     'getUsers',
@@ -41,8 +44,16 @@ const allRoles = {
     'approveSignatureByUser',
     'approveSignatureBySecretary',
     'getPaymentTotalByNotarizationField',
+    'getSessionStatus',
   ],
-  notary: ['getDocumentsByRole', 'forwardDocumentStatus', 'getApproveHistory', 'joinSession', 'getSessionBySessionId'],
+  notary: [
+    'getDocumentsByRole',
+    'forwardDocumentStatus',
+    'getApproveHistory',
+    'joinSession',
+    'getSessionBySessionId',
+    'getSessionStatus',
+  ],
   secretary: [
     'getDocumentsByRole',
     'forwardDocumentStatus',
@@ -50,6 +61,7 @@ const allRoles = {
     'joinSession',
     'approveSignatureBySecretary',
     'getSessionBySessionId',
+    'getSessionStatus',
   ],
 };
 

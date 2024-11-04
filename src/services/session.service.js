@@ -1,8 +1,8 @@
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
-const { Session, User } = require('../models');
+const { Session, User, SessionStatusTracking } = require('../models');
 const ApiError = require('../utils/ApiError');
-const { userService } = require('.');
+const { userService, notarizationService } = require('.');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -219,11 +219,25 @@ const getActiveSessions = async () => {
 };
 
 const getSessionsByUserId = async (userId) => {
-  const sessions = await Session.find({ createdBy: userId });
-  if (sessions.length === 0) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
+  try {
+    const user = await userService.getUserById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+    const sessions = await Session.find({ createdBy: userId });
+
+    const joinedSessions = await Session.find({ 'users.email': user.email });
+
+    const allSessions = [...sessions, ...joinedSessions];
+
+    if (allSessions.length === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
+    }
+    return allSessions;
+  } catch (err) {
+    console.error('Error retrieving sessions by user ID:', err);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving sessions');
   }
-  return sessions;
 };
 
 const getSessionBySessionId = async (sessionId, userId) => {
@@ -243,6 +257,155 @@ const getSessionBySessionId = async (sessionId, userId) => {
   return session;
 };
 
+const uploadSessionDocument = async (sessionId, userId, files) => {
+  try {
+    if (!files || files.length === 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    const user = await userService.getUserById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    }
+
+    const isSessionUser = session.users.some((u) => u.email === user.email) || session.createdBy.equals(userId);
+    if (!isSessionUser) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
+    }
+
+    const isUserAccepted = session.users.some((u) => u.email === user.email && u.status === 'accepted');
+    if (!isUserAccepted) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'User is not accepted as part of this session');
+    }
+
+    const existingStatus = await SessionStatusTracking.findOne({ sessionId });
+    if (existingStatus) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
+    }
+
+    const fileUrls = await Promise.all(
+      files.map((file) => notarizationService.uploadFileToFirebase(file, 'sessionDocuments', sessionId))
+    );
+
+    if (!session.files) {
+      session.files = [];
+    }
+
+    const newFiles = fileUrls.map((url, index) => ({
+      filename: `${Date.now()}-${files[index].originalname}-by-${userId}`,
+      firebaseUrl: url,
+      createAt: new Date(),
+    }));
+
+    session.files.push(...newFiles);
+    await session.save();
+
+    return {
+      message: 'Files uploaded successfully',
+      uploadedFiles: newFiles,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error uploading files to session:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while uploading files');
+  }
+};
+
+const createSessionStatusTracking = async (sessionId, status) => {
+  try {
+    const statusTracking = new SessionStatusTracking({
+      sessionId,
+      status,
+      updatedAt: new Date(),
+    });
+
+    await statusTracking.save();
+    return statusTracking;
+  } catch (error) {
+    console.error('Error creating status tracking:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to create status tracking');
+  }
+};
+
+const sendSessionForNotarization = async (sessionId, userId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    if (session.createdBy.toString() !== userId.toString()) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Only the session creator can send for notarization');
+    }
+
+    if (session.files.length === 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'No documents to send for notarization');
+    }
+
+    const existingStatus = await SessionStatusTracking.findOne({ sessionId });
+    if (existingStatus) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
+    }
+
+    const sessionStatusTracking = await createSessionStatusTracking(sessionId, 'pending');
+
+    return {
+      message: 'Session sent for notarization successfully',
+      session,
+      status: sessionStatusTracking.status,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error sending session for notarization:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while sending session for notarization');
+  }
+};
+
+const getSessionStatus = async (sessionId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
+    const session = await findBySessionId(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    const status = await SessionStatusTracking.findOne({ sessionId });
+    if (!status) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not ready for notarization');
+    }
+
+    return {
+      status,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error retrieving session status:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving session status');
+  }
+};
+
 module.exports = {
   validateEmails,
   findBySessionId,
@@ -258,4 +421,8 @@ module.exports = {
   isValidMonth,
   getSessionsByUserId,
   getSessionBySessionId,
+  uploadSessionDocument,
+  sendSessionForNotarization,
+  createSessionStatusTracking,
+  getSessionStatus,
 };

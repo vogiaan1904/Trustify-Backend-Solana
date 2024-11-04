@@ -1,10 +1,27 @@
 const express = require('express');
+const multer = require('multer');
+const httpStatus = require('http-status');
 const auth = require('../../middlewares/auth');
 const validate = require('../../middlewares/validate');
 const sessionValidation = require('../../validations/session.validation');
 const sessionController = require('../../controllers/session.controller');
+const ApiError = require('../../utils/ApiError');
 
 const router = express.Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // Limit file size to 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedFileTypes = /jpeg|jpg|png|pdf/;
+    const mimeType = allowedFileTypes.test(file.mimetype);
+    const extname = allowedFileTypes.test(file.originalname.split('.').pop());
+
+    if (mimeType && extname) {
+      return cb(null, true);
+    }
+    cb(new ApiError(httpStatus.BAD_REQUEST, 'Only images and PDFs are allowed'));
+  },
+});
 
 /**
  * @swagger
@@ -97,6 +114,22 @@ router
     sessionController.getSessionBySessionId
   );
 
+router.route('/upload-session-document/:sessionId').post(
+  auth('uploadSessionDocument'),
+  upload.array('files'),
+  (req, res, next) => {
+    req.body.files = req.files.map((file) => file.originalname);
+    next();
+  },
+  validate(sessionValidation.uploadSessionDocument),
+  sessionController.uploadSessionDocument
+);
+
+router
+  .route('/send-session-for-notarization/:sessionId')
+  .post(auth('sendSessionForNotarization'), sessionController.sendSessionForNotarization);
+
+router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), sessionController.getSessionStatus);
 /**
  * @swagger
  * /session/createSession:
@@ -983,6 +1016,307 @@ router
  *                 message:
  *                   type: string
  *                   example: "Failed to retrieve sessions"
+ */
+
+/**
+ * @swagger
+ * /session/upload-session-document/{sessionId}:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Upload documents to a session
+ *     description: Uploads files to a specific session and returns URLs of the uploaded files.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session to upload documents to.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: The files to be uploaded. Supports multiple files.
+ *
+ *     responses:
+ *       '200':
+ *         description: Successfully uploaded documents to the session.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Files uploaded successfully"
+ *                 uploadedFiles:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       filename:
+ *                         type: string
+ *                         example: "1633972176823-document.pdf"
+ *                       firebaseUrl:
+ *                         type: string
+ *                         example: "https://storage.googleapis.com/bucket-name/folder-name/1633972176823-document.pdf"
+ *
+ *       '400':
+ *         description: Bad request. Session ID is invalid or no files are provided.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "No files provided"
+ *       '403':
+ *         description: Forbidden. User is not part of this session.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "User is not part of this session"
+ *       '404':
+ *         description: Not found. Session or user not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while uploading files"
+ */
+
+/**
+ * @swagger
+ * /session/send-session-for-notarization/{sessionId}:
+ *   post:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Send session for notarization
+ *     description: Sends a session for notarization if it meets the required criteria, such as having files attached and being requested by the session creator.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session to be sent for notarization.
+ *     responses:
+ *       '200':
+ *         description: Successfully sent session for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session sent for notarization successfully"
+ *                 session:
+ *                   type: object
+ *                   properties:
+ *                     sessionId:
+ *                       type: string
+ *                       example: "123456789"
+ *                     notaryField:
+ *                       type: object
+ *                       example: {"fieldName": "Sample Field"}
+ *                     notaryService:
+ *                       type: object
+ *                       example: {"serviceName": "Sample Service"}
+ *                     sessionName:
+ *                       type: string
+ *                       example: "Sample Session Name"
+ *                     startTime:
+ *                       type: string
+ *                       example: "10:00 AM"
+ *                     startDate:
+ *                       type: string
+ *                       format: date
+ *                       example: "2024-01-01"
+ *                     endTime:
+ *                       type: string
+ *                       example: "11:00 AM"
+ *                     endDate:
+ *                       type: string
+ *                       format: date
+ *                       example: "2024-01-01"
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           email:
+ *                             type: string
+ *                             example: "user@example.com"
+ *                           status:
+ *                             type: string
+ *                             enum: [pending, accepted, rejected]
+ *                             example: "pending"
+ *                     createdBy:
+ *                       type: string
+ *                       example: "609dcd123b5f3b001d9e4567"
+ *                     files:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           filename:
+ *                             type: string
+ *                             example: "document.pdf"
+ *                           firebaseUrl:
+ *                             type: string
+ *                             example: "https://example.com/document.pdf"
+ *                           createAt:
+ *                             type: string
+ *                             format: date-time
+ *                             example: "2024-01-01T10:00:00Z"
+ *                 status:
+ *                   type: string
+ *                   example: "pending"
+ *       '400':
+ *         description: Bad request. Possible issues include invalid session ID or no documents attached.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid session ID or No documents to send for notarization"
+ *       '403':
+ *         description: Forbidden. The user is not authorized to send this session for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Only the session creator can send for notarization"
+ *       '404':
+ *         description: Not found. The specified session could not be located.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while sending session for notarization"
+ */
+
+/**
+ * @swagger
+ * /session/get-session-status/{sessionId}:
+ *   get:
+ *     security:
+ *       - bearerAuth: []
+ *     tags:
+ *       - Sessions
+ *     summary: Retrieve session notarization status
+ *     description: Gets the notarization status of a specified session if it has been sent for notarization.
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the session for which to retrieve notarization status.
+ *     responses:
+ *       '200':
+ *         description: Successfully retrieved the session notarization status.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "123456789"
+ *                     sessionId:
+ *                       type: string
+ *                       example: "123456789"
+ *                     status:
+ *                       type: string
+ *                       example: "notarized"
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2024-01-01T11:00:00Z"
+ *       '400':
+ *         description: Bad request. Invalid session ID format.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid session ID"
+ *       '404':
+ *         description: Not found. The session is either not found or not yet sent for notarization.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found or not ready for notarization"
+ *       '500':
+ *         description: Internal server error.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "An error occurred while retrieving session status"
  */
 
 module.exports = router;

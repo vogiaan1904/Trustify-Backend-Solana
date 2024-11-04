@@ -9,3 +9,4 @@ module.exports.ApproveHistory = require('./approveHistory.model');
 module.exports.Session = require('./session.model');
 module.exports.RequestSignature = require('./requestSignature.model');
 module.exports.Payment = require('./payment.model');
+module.exports.SessionStatusTracking = require('./sessionStatusTracking.model');

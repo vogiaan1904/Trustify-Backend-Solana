@@ -41,7 +41,7 @@ const addUserToSession = catchAsync(async (req, res) => {
 
 const deleteUserOutOfSession = catchAsync(async (req, res) => {
   const { sessionId } = req.params;
-  const { email } = req.body; // Changed to receive a single email
+  const { email } = req.body;
   const userId = req.user.id;
   const updatedSession = await sessionService.deleteUserOutOfSession(sessionId, email, userId); // Pass single email
   res.status(httpStatus.OK).send(updatedSession);
@@ -91,6 +91,26 @@ const getSessionBySessionId = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(sessions);
 });
 
+const uploadSessionDocument = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+  const uploadedSessionDocument = await sessionService.uploadSessionDocument(sessionId, userId, req.files);
+  res.status(httpStatus.OK).send(uploadedSessionDocument);
+});
+
+const sendSessionForNotarization = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+  const session = await sessionService.sendSessionForNotarization(sessionId, userId);
+  res.status(httpStatus.OK).send(session);
+});
+
+const getSessionStatus = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const sessionStatusTracking = await sessionService.getSessionStatus(sessionId);
+  res.status(httpStatus.OK).send(sessionStatusTracking);
+});
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -102,4 +122,7 @@ module.exports = {
   getActiveSessions,
   getSessionsByUserId,
   getSessionBySessionId,
+  uploadSessionDocument,
+  sendSessionForNotarization,
+  getSessionStatus,
 };
