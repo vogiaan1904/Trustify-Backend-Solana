@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
+const pick = require('../utils/pick');
 const { sessionService, emailService } = require('../services');
 const { addUserToSession: addUserToSessionValidation } = require('../validations/session.validation');
 
@@ -57,7 +58,8 @@ const joinSession = catchAsync(async (req, res) => {
 });
 
 const getAllSessions = catchAsync(async (req, res) => {
-  const getSessions = await sessionService.getAllSessions();
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+  const getSessions = await sessionService.getAllSessions({}, options);
   res.status(httpStatus.OK).send(getSessions);
 });
 
