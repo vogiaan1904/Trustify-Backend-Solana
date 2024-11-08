@@ -32,7 +32,7 @@ const queryUsers = async (filter, options) => {
     users.results.map(async (user) => {
       const documentCount = await Document.countDocuments({ userId: user.id });
       return {
-        ...user.toObject(),
+        ...user.toJSON(),
         documentCount,
       };
     })
@@ -43,7 +43,6 @@ const queryUsers = async (filter, options) => {
     results: usersWithCount,
   };
 };
-
 /**
  * Get user by id
  * @param {ObjectId} id

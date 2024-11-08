@@ -4,7 +4,7 @@ const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const { userService } = require('../services');
 const { auth } = require('../config/firebase');
-const Document = require('../models/document.model'); // Import the Document model
+const Document = require('../models/document.model');
 
 const createUser = catchAsync(async (req, res) => {
   const user = await userService.createUser(req.body);
@@ -24,9 +24,8 @@ const getUser = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
   const documentCount = await Document.countDocuments({ userId: user.id });
-  res.send({ ...user.toObject(), documentCount });
+  res.send({ ...user.toJSON(), documentCount });
 });
-
 const updateUser = catchAsync(async (req, res) => {
   const user = await userService.updateUserById(req.params.userId, req.body);
   res.send(user);
