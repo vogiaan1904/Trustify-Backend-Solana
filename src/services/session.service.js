@@ -560,6 +560,9 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
       if (!feedBack) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'feedBack is required for rejected status');
       }
+      if (typeof feedBack !== 'string') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid feedBack format');
+      }
       updateData.feedBack = feedBack;
     }
 
