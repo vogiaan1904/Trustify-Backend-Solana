@@ -213,6 +213,22 @@ router
     validate(sessionValidation.forwardSessionStatus),
     sessionController.forwardSessionStatus
   );
+
+router.post(
+  '/approve-signature-session-by-user',
+  auth('approveSignatureSessionByUser'),
+  upload.single('signatureImage'),
+  validate(sessionValidation.approveSignatureSessionByUser),
+  sessionController.approveSignatureSessionByUser
+);
+
+router.post(
+  '/approve-signature-session-by-secretary',
+  auth('approveSignatureSessionBySecretary'),
+  validate(sessionValidation.approveSignatureSessionBySecretary),
+  sessionController.approveSignatureSessionBySecretary
+);
+
 /**
  * @swagger
  * /session/createSession:
@@ -1545,6 +1561,95 @@ router
  *                 message:
  *                   type: string
  *                   example: "Session not found or status already updated"
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /session/approve-signature-session-by-user:
+ *   post:
+ *     summary: Approve signature session by user
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *                 description: ID of the session to approve
+ *               amount:
+ *                 type: number
+ *                 description: Amount of the session to approve
+ *               signatureImage:
+ *                 type: string
+ *                 format: binary
+ *                 description: Signature image of the session to approve
+ *     responses:
+ *       "200":
+ *         description: Signature approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Signature approved successfully"
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /session/approve-signature-session-by-secretary:
+ *   post:
+ *     summary: Approve signature session by secretary
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *                 description: ID of the session to approve
+ *     responses:
+ *       "200":
+ *         description: Signature approved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Signature approved successfully"
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
  *       "500":
  *         $ref: '#/components/responses/InternalServerError'
  */

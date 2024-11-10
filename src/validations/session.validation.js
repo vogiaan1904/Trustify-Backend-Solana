@@ -89,6 +89,19 @@ const forwardSessionStatus = {
   }),
 };
 
+const approveSignatureSessionByUser = {
+  body: Joi.object().keys({
+    sessionId: Joi.string().required(),
+    amount: Joi.number().required(),
+  }),
+};
+
+const approveSignatureSessionBySecretary = {
+  body: Joi.object().keys({
+    sessionId: Joi.string().required(),
+  }),
+};
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -99,4 +112,6 @@ module.exports = {
   getSessionBySessionId,
   uploadSessionDocument,
   forwardSessionStatus,
+  approveSignatureSessionByUser,
+  approveSignatureSessionBySecretary,
 };

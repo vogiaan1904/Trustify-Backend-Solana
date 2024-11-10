@@ -1,6 +1,6 @@
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
-const { Session, User, SessionStatusTracking, ApproveSessionHistory } = require('../models');
+const { Session, User, SessionStatusTracking, ApproveSessionHistory, RequestSessionSignature } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
 const emailService = require('./email.service');
@@ -472,7 +472,7 @@ const getSessionByRole = async (role) => {
     } else if (role === 'secretary') {
       statusFilter = ['pending', 'verification', 'digitalSignature'];
     } else {
-      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
     }
 
     const sessionStatusTrackings = await SessionStatusTracking.find({ status: { $in: statusFilter } });
@@ -494,8 +494,8 @@ const getSessionByRole = async (role) => {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error retrieving documents by role:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve documents');
+    console.error('Error retrieving sessions by role:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve sessions');
   }
 };
 
@@ -608,14 +608,118 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error forwarding document status:', error.message);
+    console.error('Error forwarding session status:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An unexpected error occurred');
   }
 };
 
-const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {};
+const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {
+  try {
+    console.log(signatureImage);
+    const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
 
-const approveSignatureSessionBySecretary = async (sessionId, userId) => {};
+    if (sessionStatusTracking.status !== 'digitalSignature') {
+      throw new ApiError(httpStatus.CONFLICT, 'Session is not ready for digital signature');
+    }
+
+    let requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+
+    if (!requestSessionSignature) {
+      if (!signatureImage || signatureImage.length === 0) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'No signature image provided');
+      }
+
+      const newRequestSessionSignature = new RequestSessionSignature({
+        sessionId,
+        amount,
+        signatureImage,
+        approvalStatus: {
+          secretary: {
+            approved: false,
+            approvedAt: null,
+          },
+          user: {
+            approved: true,
+            approvedAt: new Date(),
+          },
+        },
+      });
+
+      await newRequestSessionSignature.save();
+      requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+    }
+
+    requestSessionSignature.signatureImage = signatureImage || requestSessionSignature.signatureImage;
+
+    await requestSessionSignature.save();
+
+    return requestSessionSignature;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error approve signature by user:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by user');
+  }
+};
+
+const approveSignatureSessionBySecretary = async (sessionId, userId) => {
+  try {
+    const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
+
+    if (sessionStatusTracking.status !== 'digitalSignature') {
+      throw new ApiError(httpStatus.CONFLICT, 'Session is not ready for digital signature');
+    }
+
+    const requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+    if (!requestSessionSignature) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the session yet');
+    }
+
+    if (!requestSessionSignature.approvalStatus.user.approved) {
+      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has not approved the session yet');
+    }
+
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    await SessionStatusTracking.updateOne(
+      { sessionId },
+      {
+        status: 'completed',
+        updatedAt: new Date(),
+      }
+    );
+
+    const approveSessionHistory = new ApproveSessionHistory({
+      userId,
+      sessionId,
+      beforeStatus: 'digitalSignature',
+      afterStatus: 'completed',
+    });
+
+    requestSessionSignature.approvalStatus.secretary = {
+      approved: true,
+      approvedAt: new Date(),
+    };
+
+    await requestSessionSignature.save();
+
+    await approveSessionHistory.save();
+    return {
+      message: 'Secretary approved and signed the session successfully',
+      sessionId,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error approve session signature by secretary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve session signature by secretary');
+  }
+};
 
 module.exports = {
   validateEmails,
