@@ -1,9 +1,19 @@
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
-const { Session, User, SessionStatusTracking, ApproveSessionHistory, RequestSessionSignature } = require('../models');
+const {
+  Session,
+  User,
+  SessionStatusTracking,
+  ApproveSessionHistory,
+  RequestSessionSignature,
+  NotarizationField,
+  NotarizationService,
+} = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
 const emailService = require('./email.service');
+const { payOS } = require('../config/payos');
+const Payment = require('../models/payment.model');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const statusTranslations = {
@@ -13,6 +23,13 @@ const statusTranslations = {
   digitalSignature: 'Sẵn sàng ký số',
   completed: 'Hoàn tất',
   rejected: 'Không hợp lệ',
+};
+
+const generateOrderCode = () => {
+  const MAX_SAFE_INTEGER = 9007199254740991;
+  const MAX_ORDER_CODE = Math.floor(MAX_SAFE_INTEGER / 10);
+
+  return Math.floor(Math.random() * MAX_ORDER_CODE) + 1;
 };
 
 const validateEmails = async (emails) => {
@@ -62,29 +79,148 @@ const findBySessionId = async (sessionId) => {
 };
 
 const createSession = async (sessionBody) => {
-  const session = await Session.create(sessionBody);
-  return session;
+  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, createdBy } = sessionBody;
+
+  if (!sessionName || !notaryField || !notaryService || !startTime || !startDate || !endTime || !endDate || !users) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Missing required fields');
+  }
+
+  const startDateTime = new Date(`${startDate}T${startTime}`);
+  const endDateTime = new Date(`${endDate}T${endTime}`);
+
+  if (endDateTime <= startDateTime) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'End time must be after start time');
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(notaryField.id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid notaryField ID');
+  }
+
+  const fieldExists = await NotarizationField.findById(notaryField.id);
+  if (!fieldExists) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Notarization Field not found');
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(notaryService.id)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid notaryService ID');
+  }
+
+  const serviceExists = await NotarizationService.findById(notaryService.id);
+  if (!serviceExists) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Notarization Service not found');
+  }
+
+  if (serviceExists.fieldId.toString() !== fieldExists._id.toString()) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization Service does not belong to the specified Field');
+  }
+
+  const notaryFieldObj = {
+    name: fieldExists.name,
+    _id: fieldExists._id,
+    description: fieldExists.description,
+  };
+
+  const notaryServiceObj = {
+    name: serviceExists.name,
+    _id: serviceExists._id,
+    description: serviceExists.description,
+    price: serviceExists.price,
+    fieldId: serviceExists.fieldId,
+  };
+
+  if (!Array.isArray(users) || users.length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'At least one user is required');
+  }
+
+  const userEmails = users.map((u) => u.email);
+  const existingUsers = await User.find({ email: { $in: userEmails } });
+
+  if (existingUsers.length !== userEmails.length) {
+    const existingEmails = existingUsers.map((u) => u.email);
+    const missingEmails = userEmails.filter((email) => !existingEmails.includes(email));
+    throw new ApiError(httpStatus.BAD_REQUEST, `Users not found for emails: ${missingEmails.join(', ')}`);
+  }
+
+  const usersWithIds = existingUsers.map((user) => ({
+    _id: user._id,
+    email: user.email,
+    status: 'pending',
+  }));
+
+  try {
+    const sessionData = {
+      sessionName,
+      notaryField: notaryFieldObj,
+      notaryService: notaryServiceObj,
+      startTime,
+      startDate,
+      endTime,
+      endDate,
+      users: usersWithIds,
+      createdBy,
+      status: 'scheduled',
+      createdAt: new Date(),
+    };
+
+    const session = await Session.create(sessionData);
+    return session;
+  } catch (error) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Error creating session', error);
+  }
 };
 
 const addUserToSession = async (sessionId, emails) => {
-  if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
-  }
-  const session = await findBySessionId(sessionId);
+  try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
 
-  if (!session) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
-  }
+    const session = await findBySessionId(sessionId);
 
-  await validateEmails(emails);
-  if (session.users.some((user) => emails.includes(user.email))) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'User already added to this session');
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+    }
+
+    if (!Array.isArray(emails) || emails.length === 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Emails must be a non-empty array');
+    }
+
+    const invalidEmails = emails.filter((email) => !emailRegex.test(email));
+    if (invalidEmails.length > 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `Invalid email format for: ${invalidEmails.join(', ')}`);
+    }
+
+    const existingUsers = await User.find({ email: { $in: emails } });
+
+    if (existingUsers.length !== emails.length) {
+      const existingEmails = existingUsers.map((u) => u.email);
+      const missingEmails = emails.filter((email) => !existingEmails.includes(email));
+      throw new ApiError(httpStatus.BAD_REQUEST, `Users not found for emails: ${missingEmails.join(', ')}`);
+    }
+
+    const alreadyAddedEmails = session.users.filter((user) => emails.includes(user.email)).map((user) => user.email);
+
+    if (alreadyAddedEmails.length > 0) {
+      throw new ApiError(httpStatus.BAD_REQUEST, `Users already added to this session: ${alreadyAddedEmails.join(', ')}`);
+    }
+
+    const usersToAdd = existingUsers.map((user) => ({
+      _id: user._id,
+      email: user.email,
+      status: 'pending',
+    }));
+
+    session.users.push(...usersToAdd);
+    await session.save();
+
+    return session;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error adding users to session:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to add users to session');
   }
-  emails.forEach((email) => {
-    session.users.push({ email, status: 'pending' });
-  });
-  await session.save();
-  return session;
 };
 
 const deleteUserOutOfSession = async (sessionId, email, userId) => {
@@ -361,6 +497,7 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
       filename: `${Date.now()}-${files[index].originalname}-by-${userId}`,
       firebaseUrl: url,
       createAt: new Date(),
+      uploadedBy: userId,
     }));
 
     session.files.push(...newFiles);
@@ -672,7 +809,6 @@ const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) 
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by user');
   }
 };
-
 const approveSignatureSessionBySecretary = async (sessionId, userId) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
@@ -699,6 +835,43 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
+    if (session.payment) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already been paid');
+    }
+
+    const payment = new Payment({
+      orderCode: generateOrderCode(),
+      amount: session.notaryService.price * requestSessionSignature.amount,
+      description: `Session: ${sessionId.toString().slice(-15)}`,
+      returnUrl: `${process.env.SERVER_URL}/success.html`,
+      cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
+      userId,
+      sessionId,
+      serviceId: session.notaryService.id,
+      fieldId: session.notaryField.id,
+    });
+
+    await payment.save();
+
+    const paymentLinkResponse = await payOS.createPaymentLink({
+      orderCode: payment.orderCode,
+      amount: payment.amount,
+      description: payment.description,
+      returnUrl: payment.returnUrl,
+      cancelUrl: payment.cancelUrl,
+    });
+
+    payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    await payment.save();
+
+    console.log(paymentLinkResponse);
+
+    session.payment = payment._id;
+    session.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    session.orderCode = payment.orderCode;
+    await session.save();
+    console.log(session);
+
     await SessionStatusTracking.updateOne(
       { sessionId },
       {
@@ -722,6 +895,14 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
     await requestSessionSignature.save();
 
     await approveSessionHistory.save();
+    const user = await userService.getUserById(userId);
+
+    await emailService.sendEmail(
+      user.email,
+      'Link thanh toán phiên công chứng',
+      `Vui lòng click vào link sau để thanh toán: ${paymentLinkResponse.checkoutUrl}`
+    );
+
     return {
       message: 'Secretary approved and signed the session successfully',
       sessionId,
@@ -730,8 +911,8 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve session signature by secretary:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve session signature by secretary');
+    console.error('Error approve signature by secretary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by secretary');
   }
 };
 

@@ -496,6 +496,17 @@ const approveSignatureBySecretary = async (documentId, userId) => {
     await requestSignature.save();
 
     await approveHistory.save();
+
+    const user = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
+    if (!user) {
+      console.log('This is email', user);
+      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
+    }
+
+    const subject = 'Thanh toán công chứng';
+    const message = `Tài liệu của bạn với ID: ${documentId} đã được duyệt và sẵn sàng thanh toán. Vui lòng truy cập vào link sau để thanh toán: ${paymentLinkResponse.checkoutUrl}`;
+    await emailService.sendEmail(user.requesterInfo.email, subject, message);
+
     return {
       message: 'Secretary approved and signed the document successfully',
       documentId,

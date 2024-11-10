@@ -25,121 +25,6 @@ const upload = multer({
 
 /**
  * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- *       description: 'JWT authorization header. Use `Bearer <token>` format.'
- *   schemas:
- *     Session:
- *       type: object
- *       properties:
- *         _id:
- *           type: string
- *           description: The unique ID of the session
- *         sessionId:
- *           type: string
- *           description: The ID of the session
- *         notaryField:
- *           type: object
- *           description: The notary field information
- *         notaryService:
- *           type: object
- *           description: The notary service information
- *         sessionName:
- *           type: string
- *           description: The name of the session
- *         startTime:
- *           type: string
- *           description: The start time of the session
- *         startDate:
- *           type: string
- *           format: date
- *           description: The start date of the session
- *         endTime:
- *           type: string
- *           description: The end time of the session
- *         endDate:
- *           type: string
- *           format: date
- *           description: The end date of the session
- *         users:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *                 description: The email of the user
- *               status:
- *                 type: string
- *                 description: The status of the user (pending, accepted, rejected)
- *         createdBy:
- *           type: string
- *           description: The ID of the user who created the session
- *         files:
- *           type: array
- *           items:
- *             type: object
- *             properties:
- *               filename:
- *                 type: string
- *                 description: The filename of the uploaded file
- *               firebaseUrl:
- *                 type: string
- *                 description: The Firebase URL of the uploaded file
- *               createAt:
- *                 type: string
- *                 format: date-time
- *                 description: The creation timestamp of the file
- *       required:
- *         - sessionId
- *         - notaryField
- *         - notaryService
- *         - sessionName
- *         - startTime
- *         - startDate
- *         - endTime
- *         - endDate
- *         - users
- *         - createdBy
- *
- *   responses:
- *     BadRequest:
- *       description: Bad Request
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: Invalid request parameters
- *     Unauthorized:
- *       description: Unauthorized access
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: Unauthorized
- *     InternalServerError:
- *       description: Internal Server Error
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- */
-
-/**
- * @swagger
  * tags:
  *   name: Sessions
  *   description: Sessions management API
@@ -233,7 +118,7 @@ router.post(
  * @swagger
  * /session/createSession:
  *   post:
- *     summary: Create session
+ *     summary: Create a new session
  *     tags: [Sessions]
  *     security:
  *       - bearerAuth: []
@@ -246,35 +131,31 @@ router.post(
  *             properties:
  *               sessionName:
  *                 type: string
- *                 description: The name of the session
+ *                 description: Name of the session
  *                 example: "Notarization Session"
  *               notaryField:
- *                 type: object
- *                 description: The field of the notary
- *                 example: {"name": "Notary Field"}
+ *                 $ref: '#/components/schemas/NotarizationField'
  *               notaryService:
- *                 type: object
- *                 description: The Service of the notary
- *                 example: {"name": "Notary Service"}
+ *                 $ref: '#/components/schemas/NotarizationService'
  *               startTime:
  *                 type: string
  *                 format: time
- *                 description: The time of session
- *                 example: "14:00"
+ *                 description: Start time of the session (HH:MM format)
+ *                 example: "09:00"
  *               startDate:
  *                 type: string
  *                 format: date
- *                 description: The date of session
+ *                 description: Start date of the session
  *                 example: "2024-10-10"
  *               endTime:
  *                 type: string
  *                 format: time
- *                 description: The time of session
- *                 example: "15:00"
+ *                 description: End time of the session (HH:MM format)
+ *                 example: "17:00"
  *               endDate:
  *                 type: string
  *                 format: date
- *                 description: The date of session
+ *                 description: End date of the session
  *                 example: "2024-10-10"
  *               users:
  *                 type: array
@@ -284,91 +165,52 @@ router.post(
  *                     email:
  *                       type: string
  *                 description: List of users related to the session
- *                 example: [{email: "abc@gmail.com"}, {email: "def@gmail.com"}]
+ *                 example: [{email: "22521137@gm.uit.edu.vn"}, {email: "def@gmail.com"}]
  *             required:
  *               - sessionName
+ *               - notaryField
+ *               - notaryService
  *               - startTime
  *               - startDate
  *               - endTime
  *               - endDate
  *               - users
- *               - notaryField
- *               - notaryService
  *     responses:
  *       "201":
  *         description: Session created successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 sessionName:
- *                   type: string
- *                   example: "Notarization Session"
- *                 notaryField:
- *                    type: string
- *                    example: "Notary Field"
- *                 notaryService:
- *                    type: string
- *                    example: "Notary Service"
- *                 startTime:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-10-10T20:00:00Z"
- *                 startDate:
- *                   type: string
- *                   format: date
- *                   example: "2024-10-10"
- *                 endTime:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-10-10T21:00:00Z"
- *                 endDate:
- *                   type: string
- *                   format: date
- *                   example: "2024-10-10"
- *                 users:
- *                   type: array
- *                   items:
- *                      type: object
- *                      properties:
- *                        email:
- *                          type: string
- *                   example: "abc@gmail.com"
- *                 createdBy:
- *                   type: string
- *
+ *               $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid request parameters"
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               code: 400
+ *               message: "Invalid input data"
  *       "401":
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               code: 401
+ *               message: "Please authenticate"
  *       "500":
  *         description: Internal Server Error - Failed to create session
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to create session"
- * */
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               code: 500
+ *               message: "Internal server error"
+ */
+
 /**
  * @swagger
  * /session/addUser/{sessionId}:
@@ -395,7 +237,7 @@ router.post(
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: List of email addresses add to the session
+ *                 description: List of email addresses to add to the session
  *                 example: ["abc@gmail.com", "def@gmail.com"]
  *             required:
  *               - emails
@@ -413,8 +255,8 @@ router.post(
  *                 emails:
  *                   type: array
  *                   items:
- *                      type: string
- *                   example: "abc@gmail.com"
+ *                     type: string
+ *                   example: ["abc@gmail.com", "def@gmail.com"]
  *       "400":
  *         description: Bad Request
  *         content:
@@ -445,7 +287,8 @@ router.post(
  *                 message:
  *                   type: string
  *                   example: "Failed to add user to session"
- * */
+ */
+
 /**
  * @swagger
  * /session/deleteUser/{sessionId}:
@@ -518,7 +361,8 @@ router.post(
  *                 message:
  *                   type: string
  *                   example: "Failed to delete user from session"
- * */
+ */
+
 /**
  * @swagger
  * /session/joinSession/{sessionId}:
@@ -561,7 +405,7 @@ router.post(
  *                 email:
  *                   type: array
  *                   items:
- *                      type: string
+ *                     type: string
  *                   example: "abc@gmail.com"
  *       "400":
  *         description: Bad Request
@@ -593,7 +437,8 @@ router.post(
  *                 message:
  *                   type: string
  *                   example: "Failed to join session"
- * */
+ */
+
 /**
  * @swagger
  * /session/getAllSessions:
@@ -631,60 +476,28 @@ router.post(
  *               type: array
  *               items:
  *                 type: object
- *                 properties:
- *                   sessionName:
- *                     type: string
- *                     example: "Notarization Session"
- *                   notaryField:
- *                      type: string
- *                      example: "Notary Field"
- *                   notaryService:
- *                      type: string
- *                      example: "Notary Service"
- *                   startTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T20:00:00Z"
- *                   startDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   endTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T21:00:00Z"
- *                   endDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   email:
- *                     type: array
- *                     items:
- *                        type: string
- *                     example: "abc@gmail.com"
- *                   createdBy:
- *                     type: string
+ *                 schema:
+ *                   $ref: '#/components/schemas/Sessions'
+ *       "400":
+ *         description: Bad Request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  *       "401":
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
+ *               $ref: '#/components/schemas/Error'
  *       "500":
  *         description: Internal Server Error - Failed to retrieve sessions
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to retrieve sessions"
- * */
+ *               $ref: '#/components/schemas/Error'
+ */
+
 /**
  * @swagger
  * /session/getSessionsByDate:
@@ -711,70 +524,28 @@ router.post(
  *               type: array
  *               items:
  *                 type: object
- *                 properties:
- *                   sessionName:
- *                     type: string
- *                     example: "Notarization Session"
- *                   notaryField:
- *                      type: string
- *                      example: "Notary Field"
- *                   notaryService:
- *                      type: string
- *                      example: "Notary Service"
- *                   startTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T20:00:00Z"
- *                   startDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   endTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T21:00:00Z"
- *                   endDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   email:
- *                     type: array
- *                     items:
- *                        type: string
- *                     example: "abc@gmail.com"
- *                   createdBy:
- *                     type: string
+ *                 schema:
+ *                   $ref: '#/components/schemas/Sessions'
  *       "400":
  *         description: Bad Request
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid request parameters"
+ *               $ref: '#/components/schemas/Error'
  *       "401":
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
+ *               $ref: '#/components/schemas/Error'
  *       "500":
  *         description: Internal Server Error - Failed to retrieve sessions
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to retrieve sessions"
- * */
+ *               $ref: '#/components/schemas/Error'
+ */
+
 /**
  * @swagger
  * /session/getSessionsByMonth:
@@ -801,70 +572,28 @@ router.post(
  *               type: array
  *               items:
  *                 type: object
- *                 properties:
- *                   sessionName:
- *                     type: string
- *                     example: "Notarization Session"
- *                   notaryField:
- *                      type: string
- *                      example: "Notary Field"
- *                   notaryService:
- *                      type: string
- *                      example: "Notary Service"
- *                   startTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T20:00:00Z"
- *                   startDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   endTime:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T21:00:00Z"
- *                   endDate:
- *                     type: string
- *                     format: date
- *                     example: "2024-10-10"
- *                   email:
- *                     type: array
- *                     items:
- *                        type: string
- *                     example: "abc@gmail.com"
- *                   createdBy:
- *                     type: string
+ *                 schema:
+ *                   $ref: '#/components/schemas/Sessions'
  *       "400":
  *         description: Bad Request
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid request parameters"
+ *               $ref: '#/components/schemas/Error'
  *       "401":
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
+ *               $ref: '#/components/schemas/Error'
  *       "500":
  *         description: Internal Server Error - Failed to retrieve sessions
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to retrieve sessions"
- * */
+ *               $ref: '#/components/schemas/Error'
+ */
+
 /**
  * @swagger
  * /session/getActiveSessions:
@@ -887,11 +616,11 @@ router.post(
  *                     type: string
  *                     example: "Notarization Session"
  *                   notaryField:
- *                      type: string
- *                      example: "Notary Field"
+ *                     type: string
+ *                     example: "Notary Field"
  *                   notaryService:
- *                      type: string
- *                      example: "Notary Service"
+ *                     type: string
+ *                     example: "Notary Service"
  *                   startTime:
  *                     type: string
  *                     format: date-time
@@ -911,107 +640,10 @@ router.post(
  *                   email:
  *                     type: array
  *                     items:
- *                        type: string
+ *                       type: string
  *                     example: "abc@gmail.com"
  *                   createdBy:
  *                     type: string
- *       "401":
- *         description: Unauthorized
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
- *       "500":
- *         description: Internal Server Error - Failed to retrieve sessions
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to retrieve sessions"
- * */
-/**
- * @swagger
- * /session/getSessionsByUserId:
- *   get:
- *     summary: Get sessions by user id
- *     tags: [Sessions]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       "200":
- *         description: Sessions retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   sessionName:
- *                     type: string
- *                     example: "Notarization Session"
- *                   notaryField:
- *                     type: object
- *                     properties:
- *                       name:
- *                         type: string
- *                         example: "Notary Field"
- *                   notaryService:
- *                     type: object
- *                     properties:
- *                       name:
- *                         type: string
- *                         example: "Notary Service"
- *                   startTime:
- *                     type: string
- *                     format: time
- *                     example: "14:00"
- *                   startDate:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T14:00:00Z"
- *                   endTime:
- *                     type: string
- *                     format: time
- *                     example: "15:00"
- *                   endDate:
- *                     type: string
- *                     format: date-time
- *                     example: "2024-10-10T15:00:00Z"
- *                   users:
- *                     type: array
- *                     items:
- *                       type: object
- *                       properties:
- *                         email:
- *                           type: string
- *                           example: "abc@gmail.com"
- *                         status:
- *                           type: string
- *                           example: "pending"
- *                         _id:
- *                           type: string
- *                           example: "671826e21c0db33a40e7e786"
- *                   createdBy:
- *                     type: string
- *                     example: "67180dde1a53252834c466bd"
- *       "400":
- *         description: Bad Request
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid request parameters"
  *       "401":
  *         description: Unauthorized
  *         content:
@@ -1036,6 +668,45 @@ router.post(
 
 /**
  * @swagger
+ * /session/getSessionsByUserId:
+ *   get:
+ *     summary: Get sessions by user id
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 schema:
+ *                   $ref: '#/components/schemas/Sessions'
+ *       "400":
+ *         description: Bad Request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       "401":
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       "500":
+ *         description: Internal Server Error - Failed to retrieve sessions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
  * /session/getSessionBySessionId/{sessionId}:
  *   get:
  *     summary: Get sessions by session id
@@ -1056,85 +727,26 @@ router.post(
  *           application/json:
  *             schema:
  *               type: object
- *               properties:
- *                 sessionName:
- *                   type: string
- *                   example: "Notarization Session"
- *                 notaryField:
- *                   type: object
- *                   properties:
- *                     name:
- *                       type: string
- *                       example: "Notary Field"
- *                 notaryService:
- *                   type: object
- *                   properties:
- *                     name:
- *                       type: string
- *                       example: "Notary Service"
- *                 startTime:
- *                   type: string
- *                   format: time
- *                   example: "14:00"
- *                 startDate:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-10-10T14:00:00Z"
- *                 endTime:
- *                   type: string
- *                   format: time
- *                   example: "15:00"
- *                 endDate:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-10-10T15:00:00Z"
- *                 users:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       email:
- *                         type: string
- *                         example: "abc@gmail.com"
- *                       status:
- *                         type: string
- *                         example: "pending"
- *                       _id:
- *                         type: string
- *                         example: "671826e21c0db33a40e7e786"
- *                 createdBy:
- *                   type: string
- *                   example: "67180dde1a53252834c466bd"
+ *               schema:
+ *                 $ref: '#/components/schemas/Sessions'
  *       "400":
  *         description: Bad Request
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Invalid request parameters"
+ *               $ref: '#/components/schemas/Error'
  *       "401":
  *         description: Unauthorized
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Unauthorized"
+ *               $ref: '#/components/schemas/Error'
  *       "500":
- *         description: Internal Server Error - Failed to retrieve sessions
+ *         description: Internal Server Error - Failed to retrieve session
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Failed to retrieve sessions"
+ *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -1190,7 +802,6 @@ router.post(
  *                       firebaseUrl:
  *                         type: string
  *                         example: "https://storage.googleapis.com/bucket-name/folder-name/1633972176823-document.pdf"
- *
  *       '400':
  *         description: Bad request. Session ID is invalid or no files are provided.
  *         content:
@@ -1470,7 +1081,7 @@ router.post(
  *               properties:
  *                 message:
  *                   type: string
- *                   example: No sessions found for the specified role or status filter
+ *                   example: "No sessions found for the specified role or status filter"
  *       "500":
  *         $ref: '#/components/responses/InternalServerError'
  */
