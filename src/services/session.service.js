@@ -615,7 +615,10 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
 
 const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {
   try {
-    console.log(signatureImage);
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
     const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
 
     if (sessionStatusTracking.status !== 'digitalSignature') {
@@ -665,6 +668,10 @@ const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) 
 
 const approveSignatureSessionBySecretary = async (sessionId, userId) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
     const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
 
     if (sessionStatusTracking.status !== 'digitalSignature') {
