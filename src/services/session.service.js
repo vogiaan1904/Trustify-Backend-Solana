@@ -501,6 +501,10 @@ const getSessionByRole = async (role) => {
 
 const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+
     const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
     const roleStatusMap = {
       notary: ['processing'],
