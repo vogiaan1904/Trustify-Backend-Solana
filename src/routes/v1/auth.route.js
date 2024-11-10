@@ -70,7 +70,7 @@ module.exports = router;
  *             example:
  *               name: fake name
  *               email: fake@example.com
- *               password: password1
+ *               password: example@123
  *     responses:
  *       "201":
  *         description: Created
@@ -113,7 +113,7 @@ module.exports = router;
  *                 format: password
  *             example:
  *               email: fake@example.com
- *               password: password1
+ *               password: example@123
  *     responses:
  *       "200":
  *         description: OK

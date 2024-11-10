@@ -9,6 +9,7 @@ const allRoles = {
     'getNotarizationFields',
     'getNotarizationServices',
     'approveSignatureByUser',
+    'approveSignatureSessionByUser',
     'searchUserByEmail',
     'getSessionsByUserId',
     'getSessionBySessionId',
@@ -53,6 +54,8 @@ const allRoles = {
     'joinSession',
     'getSessionBySessionId',
     'getSessionStatus',
+    'getSessionByRole',
+    'forwardSessionStatus',
   ],
   secretary: [
     'getDocumentsByRole',
@@ -60,8 +63,11 @@ const allRoles = {
     'getApproveHistory',
     'joinSession',
     'approveSignatureBySecretary',
+    'approveSignatureSessionBySecretary',
     'getSessionBySessionId',
     'getSessionStatus',
+    'getSessionByRole',
+    'forwardSessionStatus',
   ],
 };
 

@@ -113,6 +113,33 @@ const getSessionStatus = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(sessionStatusTracking);
 });
 
+const getSessionByRole = catchAsync(async (req, res) => {
+  const { user } = req;
+  const sessions = await sessionService.getSessionByRole(user.role);
+  res.status(httpStatus.OK).send(sessions);
+});
+
+const forwardSessionStatus = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const { action, feedBack } = req.body;
+  const { role } = req.user;
+  const userId = req.user.id;
+  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack);
+  res.status(httpStatus.OK).send(updatedStatus);
+});
+
+const approveSignatureSessionByUser = catchAsync(async (req, res) => {
+  const { sessionId, amount } = req.body;
+  const signatureImage = req.file.originalname;
+  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, amount, signatureImage);
+  res.status(httpStatus.CREATED).send(requestApproved);
+});
+
+const approveSignatureSessionBySecretary = catchAsync(async (req, res) => {
+  const requestApproved = await sessionService.approveSignatureSessionBySecretary(req.body.sessionId, req.user.id);
+  res.status(httpStatus.OK).send(requestApproved);
+});
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -127,4 +154,8 @@ module.exports = {
   uploadSessionDocument,
   sendSessionForNotarization,
   getSessionStatus,
+  getSessionByRole,
+  forwardSessionStatus,
+  approveSignatureSessionByUser,
+  approveSignatureSessionBySecretary,
 };
