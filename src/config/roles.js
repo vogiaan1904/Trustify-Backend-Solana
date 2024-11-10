@@ -54,6 +54,7 @@ const allRoles = {
     'getSessionBySessionId',
     'getSessionStatus',
     'getSessionByRole',
+    'forwardSessionStatus',
   ],
   secretary: [
     'getDocumentsByRole',
@@ -64,6 +65,7 @@ const allRoles = {
     'getSessionBySessionId',
     'getSessionStatus',
     'getSessionByRole',
+    'forwardSessionStatus',
   ],
 };
 

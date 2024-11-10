@@ -79,6 +79,16 @@ const uploadSessionDocument = {
   }),
 };
 
+const forwardSessionStatus = {
+  headers: Joi.object().keys({
+    userId: Joi.string().required(),
+  }),
+  body: Joi.object().keys({
+    action: Joi.string().required(),
+    feedBack: Joi.string(),
+  }),
+};
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -88,4 +98,5 @@ module.exports = {
   getSessionsByMonth,
   getSessionBySessionId,
   uploadSessionDocument,
+  forwardSessionStatus,
 };

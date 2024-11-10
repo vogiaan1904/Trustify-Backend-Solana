@@ -1,10 +1,19 @@
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
-const { Session, User, SessionStatusTracking } = require('../models');
+const { Session, User, SessionStatusTracking, ApproveSessionHistory } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
+const emailService = require('./email.service');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const statusTranslations = {
+  pending: 'Chờ xử lý',
+  processing: 'Đang xử lý',
+  verification: 'Đang xác minh',
+  digitalSignature: 'Sẵn sàng ký số',
+  completed: 'Hoàn tất',
+  rejected: 'Không hợp lệ',
+};
 
 const validateEmails = async (emails) => {
   if (!Array.isArray(emails)) {
@@ -499,20 +508,20 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
     };
 
     let newStatus;
-    const currentStatus = await StatusTracking.findOne({ documentId }, 'status');
+    const currentStatus = await SessionStatusTracking.findOne({ sessionId }, 'status');
 
     if (action === 'accept') {
       if (!currentStatus) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
+        throw new ApiError(httpStatus.NOT_FOUND, 'Session status not found');
       }
       if (currentStatus.status === 'rejected') {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Document already been rejected');
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Session already been rejected');
       }
       if (!roleStatusMap[role]) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
       }
       if (!roleStatusMap[role].includes(currentStatus.status)) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
       }
       const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
 
@@ -521,7 +530,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
       }
       newStatus = validStatuses[currentStatusIndex + 1];
       if (!newStatus) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already reached final status');
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already reached final status');
       }
     } else if (action === 'reject') {
       newStatus = 'rejected';
@@ -529,14 +538,14 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
     }
 
-    const approveHistory = new ApproveHistory({
+    const approveSessionHistory = new ApproveSessionHistory({
       userId,
-      documentId,
-      beforeStatus: (await StatusTracking.findOne({ documentId }, 'status')).status,
+      sessionId,
+      beforeStatus: (await SessionStatusTracking.findOne({ sessionId }, 'status')).status,
       afterStatus: newStatus,
     });
 
-    await approveHistory.save();
+    await approveSessionHistory.save();
 
     const updateData = {
       status: newStatus,
@@ -544,37 +553,56 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
     };
 
     if (newStatus === 'rejected') {
-      if (!feedback) {
+      if (!feedBack) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'feedBack is required for rejected status');
       }
-      updateData.feedBack = feedback;
+      updateData.feedBack = feedBack;
     }
 
-    const email = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
+    const email = await Session.findOne({ _id: sessionId }, 'users email createdBy');
     if (!email) {
       console.log('This is email', email);
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
-    if (newStatus === 'rejected') {
-      const subject = 'Tài liệu bị từ chối';
-      const message = `Tài liệu của bạn với ID: ${documentId} đã bị từ chối công chứng!\nLý do: ${feedback}`;
-      await emailService.sendEmail(email, subject, message);
-    } else {
-      const subject = 'Cập nhật trạng thái tài liệu';
-      const message = `Tài liệu của bạn với ID: ${documentId} đã được cập nhật từ trạng thái ${currentStatus.status} sang ${newStatus}.`;
-      await emailService.sendEmail(email, subject, message);
+    const userEmails = email.users.map((user) => user.email);
+
+    const creator = await User.findById(email.createdBy);
+    if (creator && creator.email) {
+      userEmails.push(creator.email);
     }
 
-    const result = await StatusTracking.updateOne({ documentId }, updateData);
+    let subject;
+    let message;
+
+    const currentStatusInVietnamese = statusTranslations[currentStatus.status];
+    const newStatusInVietnamese = statusTranslations[newStatus];
+
+    console.log(currentStatusInVietnamese, newStatusInVietnamese);
+
+    if (newStatus === 'rejected') {
+      subject = 'Phiên công chứng bị từ chối';
+      message = `Phiên công chứng của bạn với ID: ${sessionId} đã bị từ chối công chứng!\nLý do: ${feedBack}`;
+    } else {
+      subject = 'Cập nhật trạng thái phiên công chứng';
+      message = `Phiên công chứng của bạn với ID: ${sessionId} đã được cập nhật từ trạng thái ${currentStatusInVietnamese} sang ${newStatusInVietnamese}.`;
+    }
+
+    await Promise.all(
+      userEmails.map(async (userEmail) => {
+        await emailService.sendEmail(userEmail, subject, message);
+      })
+    );
+
+    const result = await SessionStatusTracking.updateOne({ sessionId }, updateData);
 
     if (result.nModified === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'No status found for this document');
+      throw new ApiError(httpStatus.NOT_FOUND, 'No status found for this session');
     }
 
     return {
-      message: `Document status updated to ${newStatus}`,
-      documentId,
+      message: `Session status updated to ${newStatus}`,
+      sessionId,
     };
   } catch (error) {
     if (error instanceof ApiError) {

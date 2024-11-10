@@ -205,6 +205,14 @@ router
 router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), sessionController.getSessionStatus);
 
 router.route('/get-session-by-role').get(auth('getSessionByRole'), sessionController.getSessionByRole);
+
+router
+  .route('/forward-session-status/:sessionId')
+  .patch(
+    auth('forwardSessionStatus'),
+    validate(sessionValidation.forwardSessionStatus),
+    sessionController.forwardSessionStatus
+  );
 /**
  * @swagger
  * /session/createSession:
@@ -1447,6 +1455,96 @@ router.route('/get-session-by-role').get(auth('getSessionByRole'), sessionContro
  *                 message:
  *                   type: string
  *                   example: No sessions found for the specified role or status filter
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /session/forward-session-status/{sessionId}:
+ *   patch:
+ *     summary: Forward the status of a session by session ID
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the session to forward status
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 description: The action to perform on the session (accept or reject)
+ *                 example: accept
+ *               feedBack:
+ *                 type: string
+ *                 description: Feedback for rejecting the session (required if action is 'reject')
+ *                 example: "The session is missing necessary information."
+ *     responses:
+ *       "200":
+ *         description: Successfully updated the session status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Session status updated to processing"
+ *                 sessionId:
+ *                   type: string
+ *                   example: "abc123"
+ *       "400":
+ *         description: Bad request (invalid parameters or missing required fields)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Feedback is required for rejected status"
+ *       "401":
+ *         description: Unauthorized
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "You do not have permission to access this session"
+ *       "404":
+ *         description: Session not found or invalid status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Session not found or status already updated"
  *       "500":
  *         $ref: '#/components/responses/InternalServerError'
  */
