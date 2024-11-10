@@ -32,6 +32,79 @@ const upload = multer({
  *       scheme: bearer
  *       bearerFormat: JWT
  *       description: 'JWT authorization header. Use `Bearer <token>` format.'
+ *   schemas:
+ *     Session:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *           description: The unique ID of the session
+ *         sessionId:
+ *           type: string
+ *           description: The ID of the session
+ *         notaryField:
+ *           type: object
+ *           description: The notary field information
+ *         notaryService:
+ *           type: object
+ *           description: The notary service information
+ *         sessionName:
+ *           type: string
+ *           description: The name of the session
+ *         startTime:
+ *           type: string
+ *           description: The start time of the session
+ *         startDate:
+ *           type: string
+ *           format: date
+ *           description: The start date of the session
+ *         endTime:
+ *           type: string
+ *           description: The end time of the session
+ *         endDate:
+ *           type: string
+ *           format: date
+ *           description: The end date of the session
+ *         users:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: The email of the user
+ *               status:
+ *                 type: string
+ *                 description: The status of the user (pending, accepted, rejected)
+ *         createdBy:
+ *           type: string
+ *           description: The ID of the user who created the session
+ *         files:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               filename:
+ *                 type: string
+ *                 description: The filename of the uploaded file
+ *               firebaseUrl:
+ *                 type: string
+ *                 description: The Firebase URL of the uploaded file
+ *               createAt:
+ *                 type: string
+ *                 format: date-time
+ *                 description: The creation timestamp of the file
+ *       required:
+ *         - sessionId
+ *         - notaryField
+ *         - notaryService
+ *         - sessionName
+ *         - startTime
+ *         - startDate
+ *         - endTime
+ *         - endDate
+ *         - users
+ *         - createdBy
  *
  *   responses:
  *     BadRequest:
@@ -130,6 +203,8 @@ router
   .post(auth('sendSessionForNotarization'), sessionController.sendSessionForNotarization);
 
 router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), sessionController.getSessionStatus);
+
+router.route('/get-session-by-role').get(auth('getSessionByRole'), sessionController.getSessionByRole);
 /**
  * @swagger
  * /session/createSession:
@@ -1337,6 +1412,43 @@ router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), ses
  *                 message:
  *                   type: string
  *                   example: "An error occurred while retrieving session status"
+ */
+
+/**
+ * @swagger
+ * /session/get-session-by-role:
+ *   get:
+ *     summary: Get sessions by user role (notary or secretary)
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       "200":
+ *         description: Successfully retrieved sessions based on user role
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Session'
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         description: No sessions found for the specified role or status filter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: No sessions found for the specified role or status filter
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
  */
 
 module.exports = router;

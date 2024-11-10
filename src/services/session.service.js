@@ -328,9 +328,11 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
       throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
     }
 
-    const isUserAccepted = session.users.some((u) => u.email === user.email && u.status === 'accepted');
-    if (!isUserAccepted) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'User is not accepted as part of this session');
+    if (!session.createdBy.equals(userId)) {
+      const isUserAccepted = session.users.some((u) => u.email === user.email && u.status === 'accepted');
+      if (!isUserAccepted) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'User is not accepted as part of this session');
+      }
     }
 
     const existingStatus = await SessionStatusTracking.findOne({ sessionId });
@@ -452,6 +454,141 @@ const getSessionStatus = async (sessionId) => {
   }
 };
 
+const getSessionByRole = async (role) => {
+  try {
+    let statusFilter = [];
+
+    if (role === 'notary') {
+      statusFilter = ['processing'];
+    } else if (role === 'secretary') {
+      statusFilter = ['pending', 'verification', 'digitalSignature'];
+    } else {
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+    }
+
+    const sessionStatusTrackings = await SessionStatusTracking.find({ status: { $in: statusFilter } });
+
+    const sessionIds = sessionStatusTrackings.map((tracking) => tracking.sessionId);
+
+    const sessions = await Session.find({ _id: { $in: sessionIds } });
+
+    const result = sessions.map((doc) => {
+      const statusTracking = sessionStatusTrackings.find((tracking) => tracking.sessionId.toString() === doc._id.toString());
+      return {
+        ...doc.toObject(),
+        status: statusTracking.status,
+      };
+    });
+
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error retrieving documents by role:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve documents');
+  }
+};
+
+const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) => {
+  try {
+    const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
+    const roleStatusMap = {
+      notary: ['processing'],
+      secretary: ['pending', 'verification', 'digitalSignature'],
+    };
+
+    let newStatus;
+    const currentStatus = await StatusTracking.findOne({ documentId }, 'status');
+
+    if (action === 'accept') {
+      if (!currentStatus) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
+      }
+      if (currentStatus.status === 'rejected') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Document already been rejected');
+      }
+      if (!roleStatusMap[role]) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+      }
+      if (!roleStatusMap[role].includes(currentStatus.status)) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+      }
+      const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
+
+      if (currentStatusIndex === -1) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid current status');
+      }
+      newStatus = validStatuses[currentStatusIndex + 1];
+      if (!newStatus) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already reached final status');
+      }
+    } else if (action === 'reject') {
+      newStatus = 'rejected';
+    } else {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
+    }
+
+    const approveHistory = new ApproveHistory({
+      userId,
+      documentId,
+      beforeStatus: (await StatusTracking.findOne({ documentId }, 'status')).status,
+      afterStatus: newStatus,
+    });
+
+    await approveHistory.save();
+
+    const updateData = {
+      status: newStatus,
+      updatedAt: new Date(),
+    };
+
+    if (newStatus === 'rejected') {
+      if (!feedback) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'feedBack is required for rejected status');
+      }
+      updateData.feedBack = feedback;
+    }
+
+    const email = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
+    if (!email) {
+      console.log('This is email', email);
+      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
+    }
+
+    if (newStatus === 'rejected') {
+      const subject = 'Tài liệu bị từ chối';
+      const message = `Tài liệu của bạn với ID: ${documentId} đã bị từ chối công chứng!\nLý do: ${feedback}`;
+      await emailService.sendEmail(email, subject, message);
+    } else {
+      const subject = 'Cập nhật trạng thái tài liệu';
+      const message = `Tài liệu của bạn với ID: ${documentId} đã được cập nhật từ trạng thái ${currentStatus.status} sang ${newStatus}.`;
+      await emailService.sendEmail(email, subject, message);
+    }
+
+    const result = await StatusTracking.updateOne({ documentId }, updateData);
+
+    if (result.nModified === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'No status found for this document');
+    }
+
+    return {
+      message: `Document status updated to ${newStatus}`,
+      documentId,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error forwarding document status:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An unexpected error occurred');
+  }
+};
+
+const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {};
+
+const approveSignatureSessionBySecretary = async (sessionId, userId) => {};
+
 module.exports = {
   validateEmails,
   findBySessionId,
@@ -471,4 +608,8 @@ module.exports = {
   sendSessionForNotarization,
   createSessionStatusTracking,
   getSessionStatus,
+  getSessionByRole,
+  forwardSessionStatus,
+  approveSignatureSessionByUser,
+  approveSignatureSessionBySecretary,
 };

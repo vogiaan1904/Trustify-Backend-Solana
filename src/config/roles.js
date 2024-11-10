@@ -53,6 +53,7 @@ const allRoles = {
     'joinSession',
     'getSessionBySessionId',
     'getSessionStatus',
+    'getSessionByRole',
   ],
   secretary: [
     'getDocumentsByRole',
@@ -62,6 +63,7 @@ const allRoles = {
     'approveSignatureBySecretary',
     'getSessionBySessionId',
     'getSessionStatus',
+    'getSessionByRole',
   ],
 };
 
