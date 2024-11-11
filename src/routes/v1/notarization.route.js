@@ -281,7 +281,7 @@ router
  *               action:
  *                 type: string
  *                 description: The action to perform on the document (accept or reject)
- *                 example: reject
+ *                 example: accept
  *               feedback:
  *                 type: string
  *                 description: Feedback for rejecting the document (required if action is 'reject')

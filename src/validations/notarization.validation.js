@@ -43,8 +43,12 @@ const forwardDocumentStatus = {
     userId: Joi.string().required(),
   }),
   body: Joi.object().keys({
-    action: Joi.string().required(),
-    feedBack: Joi.string(),
+    action: Joi.string().valid('accept', 'reject').required(),
+    feedback: Joi.string().when('action', {
+      is: 'reject',
+      then: Joi.required(),
+      otherwise: Joi.optional(), // Changed from Joi.forbidden() to Joi.optional()
+    }),
   }),
 };
 

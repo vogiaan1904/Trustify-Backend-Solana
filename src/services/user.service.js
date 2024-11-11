@@ -1,6 +1,7 @@
 const httpStatus = require('http-status');
 const { User } = require('../models');
 const ApiError = require('../utils/ApiError');
+const Document = require('../models/document.model');
 
 /**
  * Create a user
@@ -25,9 +26,23 @@ const createUser = async (userBody) => {
  */
 const queryUsers = async (filter, options) => {
   const users = await User.paginate(filter, options);
-  return users;
-};
 
+  // Get document counts for all users
+  const usersWithCount = await Promise.all(
+    users.results.map(async (user) => {
+      const documentCount = await Document.countDocuments({ userId: user.id });
+      return {
+        ...user.toJSON(),
+        documentCount,
+      };
+    })
+  );
+
+  return {
+    ...users,
+    results: usersWithCount,
+  };
+};
 /**
  * Get user by id
  * @param {ObjectId} id

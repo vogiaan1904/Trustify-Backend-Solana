@@ -1,6 +1,7 @@
 const httpStatus = require('http-status');
 const { adminService } = require('../services');
 const catchAsync = require('../utils/catchAsync');
+const pick = require('../utils/pick');
 
 const getDocumentCount = catchAsync(async (req, res) => {
   const { period } = req.params; // Changed from req.query to req.params
@@ -89,8 +90,10 @@ const getEmployeeCount = catchAsync(async (req, res) => {
 });
 
 const getEmployeeList = catchAsync(async (req, res) => {
-  const EmployeeList = await adminService.getEmployeeList();
-  console.log(EmployeeList);
+  const filter = {};
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+  const EmployeeList = await adminService.getEmployeeList(filter, options);
+  // console.log(EmployeeList);
   res.send(EmployeeList);
 });
 

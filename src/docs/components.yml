@@ -114,15 +114,9 @@ components:
         sessionId:
           type: string
         notaryField:
-          type: object
-          properties:
-            name:
-              type: string
+          $ref: '#/components/schemas/NotarizationField'
         notaryService:
-          type: object
-          properties:
-            name:
-              type: string
+          $ref: '#/components/schemas/NotarizationService'
         sessionName:
           type: string
         startTime:

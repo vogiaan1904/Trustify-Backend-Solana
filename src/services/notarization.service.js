@@ -102,6 +102,8 @@ const createDocument = async (documentBody, files, userId) => {
     newDocument.files = formattedFiles;
     await newDocument.save();
 
+    await emailService.sendDocumentUploadEmail(requesterInfo.email, requesterInfo.fullName, newDocument._id);
+
     return newDocument;
   } catch (error) {
     if (error instanceof ApiError) {
@@ -199,7 +201,6 @@ const getDocumentByRole = async (role) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve documents');
   }
 };
-
 const forwardDocumentStatus = async (documentId, action, role, userId, feedback) => {
   try {
     const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
@@ -208,79 +209,73 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
       secretary: ['pending', 'verification', 'digitalSignature'],
     };
 
-    let newStatus;
+    // Fetch current status once and reuse
     const currentStatus = await StatusTracking.findOne({ documentId }, 'status');
+    if (!currentStatus) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
+    }
 
+    // Validate role permissions
+    if (!roleStatusMap[role]?.includes(currentStatus.status)) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+    }
+
+    // Validate action and handle feedback requirements
+    let newStatus;
     if (action === 'accept') {
-      if (!currentStatus) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
-      }
       if (currentStatus.status === 'rejected') {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Document already been rejected');
       }
-      if (!roleStatusMap[role]) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
-      }
-      if (!roleStatusMap[role].includes(currentStatus.status)) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
-      }
-      const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
 
-      if (currentStatusIndex === -1) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid current status');
-      }
+      const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
       newStatus = validStatuses[currentStatusIndex + 1];
+
       if (!newStatus) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already reached final status');
       }
     } else if (action === 'reject') {
+      if (!feedback) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Feedback is required for rejection');
+      }
       newStatus = 'rejected';
     } else {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
     }
 
+    // Create approve history
     const approveHistory = new ApproveHistory({
       userId,
       documentId,
-      beforeStatus: (await StatusTracking.findOne({ documentId }, 'status')).status,
+      beforeStatus: currentStatus.status,
       afterStatus: newStatus,
     });
-
     await approveHistory.save();
 
+    // Prepare update data
     const updateData = {
       status: newStatus,
       updatedAt: new Date(),
+      ...(feedback && { feedback }), // Only include feedback if it exists
     };
 
-    if (newStatus === 'rejected') {
-      if (!feedback) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'feedBack is required for rejected status');
-      }
-      updateData.feedBack = feedback;
-    }
+    // Fetch email in parallel with approve history save
+    const [email] = await Promise.all([
+      Document.findOne({ _id: documentId }, 'requesterInfo.email'),
+      StatusTracking.updateOne({ documentId }, updateData),
+    ]);
 
-    const email = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
-    if (!email) {
-      console.log('This is email', email);
+    if (!email?.requesterInfo?.email) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
-    if (newStatus === 'rejected') {
-      const subject = 'Tài liệu bị từ chối';
-      const message = `Tài liệu của bạn với ID: ${documentId} đã bị từ chối công chứng!\nLý do: ${feedback}`;
-      await emailService.sendEmail(email, subject, message);
-    } else {
-      const subject = 'Cập nhật trạng thái tài liệu';
-      const message = `Tài liệu của bạn với ID: ${documentId} đã được cập nhật từ trạng thái ${currentStatus.status} sang ${newStatus}.`;
-      await emailService.sendEmail(email, subject, message);
-    }
-
-    const result = await StatusTracking.updateOne({ documentId }, updateData);
-
-    if (result.nModified === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'No status found for this document');
-    }
+    // Send email notification
+    await emailService.sendDocumentStatusUpdateEmail(
+      email.requesterInfo.email,
+      documentId,
+      currentStatus.status,
+      newStatus,
+      feedback
+    );
 
     return {
       message: `Document status updated to ${newStatus}`,
@@ -496,6 +491,15 @@ const approveSignatureBySecretary = async (documentId, userId) => {
     await requestSignature.save();
 
     await approveHistory.save();
+
+    const user = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
+    if (!user) {
+      console.log('This is email', user);
+      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
+    }
+
+    await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
+
     return {
       message: 'Secretary approved and signed the document successfully',
       documentId,

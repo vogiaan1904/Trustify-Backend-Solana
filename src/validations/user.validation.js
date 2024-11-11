@@ -10,6 +10,7 @@ const createUser = {
     citizenId: Joi.string().required(),
     phoneNumber: Joi.string().required(),
     address: Joi.string().required(),
+    status: Joi.string().valid('active', 'inactive', 'suspended', 'deleted').default('active'),
   }),
 };
 
@@ -38,9 +39,6 @@ const updateUser = {
       email: Joi.string().email(),
       password: Joi.string().custom(password),
       name: Joi.string(),
-      citizenId: Joi.string(),
-      phoneNumber: Joi.string(),
-      address: Joi.string(),
     })
     .min(1),
 };

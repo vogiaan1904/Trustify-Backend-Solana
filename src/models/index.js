@@ -10,3 +10,5 @@ module.exports.Session = require('./session.model');
 module.exports.RequestSignature = require('./requestSignature.model');
 module.exports.Payment = require('./payment.model');
 module.exports.SessionStatusTracking = require('./sessionStatusTracking.model');
+module.exports.ApproveSessionHistory = require('./approveSessionHistory.model');
+module.exports.RequestSessionSignature = require('./requestSessionSignature.model');

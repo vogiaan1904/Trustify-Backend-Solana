@@ -1,4 +1,7 @@
+// EMAIL.SERVICE.JS
 const nodemailer = require('nodemailer');
+const fs = require('fs').promises;
+const path = require('path');
 const config = require('../config/config');
 const logger = require('../config/logger');
 
@@ -15,12 +18,27 @@ if (config.env !== 'test') {
  * Send an email
  * @param {string} to
  * @param {string} subject
- * @param {string} text
+ * @param {string} html
  * @returns {Promise}
  */
-const sendEmail = async (to, subject, text) => {
-  const msg = { from: config.email.from, to, subject, text };
+const sendEmail = async (to, subject, html) => {
+  const msg = { from: config.email.from, to, subject, html };
   await transport.sendMail(msg);
+};
+
+/**
+ * Load HTML template and replace placeholders
+ * @param {string} templateName
+ * @param {object} replacements
+ * @returns {Promise<string>}
+ */
+const loadTemplate = async (templateName, replacements) => {
+  const filePath = path.join(__dirname, '..', 'public', 'templates', `${templateName}.html`);
+  let template = await fs.readFile(filePath, 'utf8');
+  for (const key in replacements) {
+    template = template.replace(new RegExp(`{{${key}}}`, 'g'), replacements[key]);
+  }
+  return template;
 };
 
 /**
@@ -31,44 +49,64 @@ const sendEmail = async (to, subject, text) => {
  */
 const sendResetPasswordEmail = async (to, token) => {
   const subject = 'Reset password';
-  // replace this url with the link to the reset password page of your front-end app
   const resetPasswordUrl = `http://localhost:3100/v1/auth/reset-password?token=${token}`;
-  const text = `Dear user,
-To reset your password, click on this link: ${resetPasswordUrl}
-If you did not request any password resets, then ignore this email.`;
-  await sendEmail(to, subject, text);
+  const html = await loadTemplate('reset_password', { resetPasswordUrl });
+  await sendEmail(to, subject, html);
 };
 
-/**
- * Send verification email
- * @param {string} to
- * @param {string} token
- * @returns {Promise}
- */
 const sendVerificationEmail = async (to, token) => {
   const subject = 'Email Verification';
-  // replace this url with the link to the email verification page of your front-end app
   const verificationEmailUrl = `http://localhost:3100/v1/auth/verify-email?token=${token}`;
-  const text = `Dear user,
-To verify your email, click on this link: ${verificationEmailUrl}
-If you did not create an account, then ignore this email.`;
-  await sendEmail(to, subject, text);
+  const html = await loadTemplate('verification_email', { verificationEmailUrl });
+  await sendEmail(to, subject, html);
 };
 
-/**
- * Send invitation email
- * @param {string} to
- * @param {string} sessionId
- * @returns {Promise}
- */
 const sendInvitationEmail = async (to, sessionId) => {
   const subject = 'Session Invitation';
   const joinSessionURL = `http://localhost:3100/v1/session/joinSession/${sessionId}`;
-  const text = `Dear user,
-You are invited to participate in a session
-To join the session, click this link: ${joinSessionURL}
-If you did not create an account, then ignore this email.`;
-  await sendEmail(to, subject, text);
+  const html = await loadTemplate('invitation_email', { joinSessionURL });
+  await sendEmail(to, subject, html);
+};
+
+const sendDocumentUploadEmail = async (to, userName, documentId) => {
+  if (!to || !userName || !documentId) {
+    throw new Error('Missing required parameters for sending document upload email');
+  }
+
+  console.log(`Preparing to send Document Upload Confirmation Email to: ${to}`);
+
+  const subject = 'Document Upload Confirmation';
+  const html = await loadTemplate('document_upload_confirmation', { userName, documentId });
+
+  try {
+    await sendEmail(to, subject, html);
+    console.log(`Document Upload Confirmation Email sent to ${to}`);
+  } catch (error) {
+    console.error(`Failed to send Document Upload Confirmation Email to ${to}:`, error);
+    throw error;
+  }
+};
+
+const sendDocumentStatusUpdateEmail = async (email, documentId, currentStatus, newStatus, feedback) => {
+  const subject = newStatus === 'rejected' ? 'Tài liệu bị từ chối' : 'Cập nhật trạng thái tài liệu';
+
+  const replacements = {
+    documentId,
+    currentStatus,
+    newStatus,
+    hasFeedback: !!feedback,
+    feedback: feedback || '',
+  };
+
+  const html = await loadTemplate('document_status_update', replacements);
+  await sendEmail(email, subject, html);
+};
+
+const sendPaymentEmail = async (email, documentId, paymentLinkResponse) => {
+  const subject = 'Thanh toán công chứng';
+  const paymentLink = paymentLinkResponse.checkoutUrl;
+  const html = await loadTemplate('payment_email', { documentId, paymentLink });
+  await sendEmail(email, subject, html);
 };
 
 module.exports = {
@@ -77,4 +115,7 @@ module.exports = {
   sendResetPasswordEmail,
   sendVerificationEmail,
   sendInvitationEmail,
+  sendDocumentUploadEmail,
+  sendDocumentStatusUpdateEmail,
+  sendPaymentEmail,
 };

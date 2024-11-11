@@ -79,6 +79,29 @@ const uploadSessionDocument = {
   }),
 };
 
+const forwardSessionStatus = {
+  headers: Joi.object().keys({
+    userId: Joi.string().required(),
+  }),
+  body: Joi.object().keys({
+    action: Joi.string().required(),
+    feedBack: Joi.string(),
+  }),
+};
+
+const approveSignatureSessionByUser = {
+  body: Joi.object().keys({
+    sessionId: Joi.string().required(),
+    amount: Joi.number().required(),
+  }),
+};
+
+const approveSignatureSessionBySecretary = {
+  body: Joi.object().keys({
+    sessionId: Joi.string().required(),
+  }),
+};
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -88,4 +111,7 @@ module.exports = {
   getSessionsByMonth,
   getSessionBySessionId,
   uploadSessionDocument,
+  forwardSessionStatus,
+  approveSignatureSessionByUser,
+  approveSignatureSessionBySecretary,
 };
