@@ -93,7 +93,7 @@ const getEmployeeList = catchAsync(async (req, res) => {
   const filter = {};
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const EmployeeList = await adminService.getEmployeeList(filter, options);
-  console.log(EmployeeList);
+  // console.log(EmployeeList);
   res.send(EmployeeList);
 });
 
