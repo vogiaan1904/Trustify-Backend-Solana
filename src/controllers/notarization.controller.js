@@ -3,23 +3,9 @@ const mongoose = require('mongoose');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const pick = require('../utils/pick');
-const { notarizationService, emailService } = require('../services');
+const { notarizationService } = require('../services');
 
-// Utility function to validate email format
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-// Helper function to handle email sending logic
-const sendDocumentCreationEmail = async (email, documentId) => {
-  const subject = 'Tài liệu đã được tạo';
-  const message = `Tài liệu của bạn với ID: ${documentId} đã được tạo thành công.`;
-
-  try {
-    await emailService.sendEmail(email, subject, message);
-  } catch (error) {
-    console.error('Error sending email:', error);
-    throw new Error('Failed to send email notification.');
-  }
-};
 
 // Controller function to create a document
 const createDocument = catchAsync(async (req, res) => {
@@ -32,14 +18,6 @@ const createDocument = catchAsync(async (req, res) => {
   const document = await notarizationService.createDocument({ ...req.body }, req.files, userId);
 
   await notarizationService.createStatusTracking(document._id, 'pending');
-
-  try {
-    await sendDocumentCreationEmail(req.body.requesterInfo.email, document._id);
-  } catch (error) {
-    return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-      message: 'Document created, but failed to send email notification.',
-    });
-  }
 
   res.status(httpStatus.CREATED).send(document);
 });
@@ -81,10 +59,10 @@ const getDocumentByRole = catchAsync(async (req, res) => {
 
 const forwardDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
-  const { action, feedBack } = req.body;
+  const { action, feedback } = req.body; // 'feedback' is now optional based on action
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedBack);
+  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedback);
   res.status(httpStatus.OK).send(updatedStatus);
 });
 

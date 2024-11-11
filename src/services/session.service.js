@@ -716,27 +716,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
       userEmails.push(creator.email);
     }
 
-    let subject;
-    let message;
-
-    const currentStatusInVietnamese = statusTranslations[currentStatus.status];
-    const newStatusInVietnamese = statusTranslations[newStatus];
-
-    console.log(currentStatusInVietnamese, newStatusInVietnamese);
-
-    if (newStatus === 'rejected') {
-      subject = 'Phiên công chứng bị từ chối';
-      message = `Phiên công chứng của bạn với ID: ${sessionId} đã bị từ chối công chứng!\nLý do: ${feedBack}`;
-    } else {
-      subject = 'Cập nhật trạng thái phiên công chứng';
-      message = `Phiên công chứng của bạn với ID: ${sessionId} đã được cập nhật từ trạng thái ${currentStatusInVietnamese} sang ${newStatusInVietnamese}.`;
-    }
-
-    await Promise.all(
-      userEmails.map(async (userEmail) => {
-        await emailService.sendEmail(userEmail, subject, message);
-      })
-    );
+    await emailService.sendDocumentStatusUpdateEmail(userEmails, sessionId, currentStatus.status, newStatus, feedBack);
 
     const result = await SessionStatusTracking.updateOne({ sessionId }, updateData);
 
@@ -897,11 +877,7 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
     await approveSessionHistory.save();
     const user = await userService.getUserById(userId);
 
-    await emailService.sendEmail(
-      user.email,
-      'Link thanh toán phiên công chứng',
-      `Vui lòng click vào link sau để thanh toán: ${paymentLinkResponse.checkoutUrl}`
-    );
+    await emailService.sendPaymentEmail(user.email, session._id, paymentLinkResponse.checkoutUrl);
 
     return {
       message: 'Secretary approved and signed the session successfully',
