@@ -9,3 +9,4 @@ module.exports.adminController = require('./admin.controller');
 module.exports.sessionController = require('./session.controller');
 module.exports.paymentController = require('./payment.controller');
 module.exports.locationController = require('./location.controller');
+module.exports.emailController = require('./email.controller');
