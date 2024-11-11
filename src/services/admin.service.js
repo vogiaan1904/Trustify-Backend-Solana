@@ -1,5 +1,7 @@
 const moment = require('moment');
+const httpStatus = require('http-status');
 const { Document, User, Session, Payment } = require('../models');
+const ApiError = require('../utils/ApiError');
 
 const getDocumentCount = async (period) => {
   let start;
@@ -253,9 +255,37 @@ const getEmployeeCount = async () => {
   };
 };
 
-const getEmployeeList = async () => {
-  const employeeList = await User.find({ role: { $in: ['notary', 'secretary'] } });
-  return employeeList;
+const getEmployeeList = async (filter, options) => {
+  try {
+    const { sortBy = 'name', order = 'asc', limit = 10, page = 1 } = options || {};
+
+    const sortOrder = order === 'desc' ? -1 : 1;
+
+    const skip = (page - 1) * limit;
+
+    const queryFilter = { ...filter, role: { $in: ['notary', 'secretary'] } };
+
+    const totalResults = await User.countDocuments(queryFilter);
+
+    const totalPages = Math.ceil(totalResults / limit);
+
+    const employeeList = await User.find(queryFilter)
+      .sort({ [sortBy]: sortOrder })
+      .skip(skip)
+      .limit(Number(limit))
+      .select('name email role');
+
+    return {
+      results: employeeList,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      totalResults,
+    };
+  } catch (error) {
+    console.error('Error retrieving employee list:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve employee list');
+  }
 };
 
 const getSessionCount = async (period) => {
