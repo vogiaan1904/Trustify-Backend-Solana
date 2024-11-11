@@ -272,8 +272,7 @@ const getEmployeeList = async (filter, options) => {
     const employeeList = await User.find(queryFilter)
       .sort({ [sortBy]: sortOrder })
       .skip(skip)
-      .limit(Number(limit))
-      .select('name email role');
+      .limit(Number(limit));
 
     return {
       results: employeeList,
