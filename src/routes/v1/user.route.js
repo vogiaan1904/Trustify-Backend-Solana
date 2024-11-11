@@ -50,6 +50,9 @@ module.exports = router;
  *               - email
  *               - password
  *               - role
+ *               - citizenId
+ *               - phoneNumber
+ *               - address
  *             properties:
  *               name:
  *                 type: string
@@ -65,11 +68,20 @@ module.exports = router;
  *               role:
  *                  type: string
  *                  enum: [user, admin]
+ *               citizenId:
+ *                  type: string
+ *               phoneNumber:
+ *                  type: string
+ *               address:
+ *                  type: string
  *             example:
  *               name: fake name
  *               email: fake@example.com
  *               password: password1
  *               role: user
+ *               citizenId: '0123456789'
+ *               phoneNumber: '0998877665'
+ *               address: xx Street A
  *     responses:
  *       "201":
  *         description: Created
@@ -211,10 +223,19 @@ module.exports = router;
  *                 format: password
  *                 minLength: 8
  *                 description: At least one number and one letter
+ *               citizenId:
+ *                 type: string
+ *               phoneNumber: 
+ *                 type: string
+ *               address:
+ *                 type: string
  *             example:
  *               name: fake name
  *               email: fake@example.com
  *               password: password1
+ *               citizenId: '0123456789'
+ *               phoneNumber: '0998877665'
+ *               address: xx Street A
  *     responses:
  *       "200":
  *         description: OK

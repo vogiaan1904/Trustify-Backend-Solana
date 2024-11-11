@@ -44,6 +44,23 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    citizenId: {
+      type: String,
+      trim: true,
+    },
+    phoneNumber: {
+      type: String,
+      trim: true,
+      validate(value) {
+        if (!validator.isMobilePhone(value, 'any')) {
+          throw new Error('Invalid phone number');
+        }
+      },
+    },
+    address: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
