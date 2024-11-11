@@ -40,6 +40,78 @@ module.exports = router;
  *   name: Admins
  *   description: Admin management and retrieval
  */
+
+/**
+ * @swagger
+ * components:
+ *   responses:
+ *     BadRequest:
+ *       description: Bad request due to invalid or missing query parameters
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Invalid request parameters
+ *               error:
+ *                 type: string
+ *                 example: BadRequest
+ *     Unauthorized:
+ *       description: Unauthorized access - invalid or missing token
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Unauthorized
+ *               error:
+ *                 type: string
+ *                 example: Unauthorized
+ *     Forbidden:
+ *       description: Forbidden - user does not have permission to access this resource
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Forbidden access
+ *               error:
+ *                 type: string
+ *                 example: Forbidden
+ *     NotFound:
+ *       description: Resource not found
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Resource not found
+ *               error:
+ *                 type: string
+ *                 example: NotFound
+ *     InternalServerError:
+ *       description: Internal server error
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: An unexpected error occurred
+ *               error:
+ *                 type: string
+ *                 example: InternalServerError
+ */
+
 /**
  * @swagger
  * /admin/metrics/documents/{period}:
@@ -301,36 +373,65 @@ module.exports = router;
  * @swagger
  * /admin/metrics/employees/list:
  *   get:
- *     summary: Get the list of employees with role 'notary' and 'secretary'
- *     description: Retrieve a list of employees with the role of 'notary' and 'secretary'.
+ *     summary: Get a paginated list of employees with role 'notary' and 'secretary'
+ *     description: Retrieve a list of employees with the role of 'notary' and 'secretary', including pagination and sorting options.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: Field to sort by in the form of `field:asc` or `field:desc` (e.g., `name:asc`, `email:desc`)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 10
+ *         description: Maximum number of employees per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
  *     responses:
  *       "200":
- *         description: Successful operation
+ *         description: Successful retrieval of employee list
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 limit:
+ *                   type: integer
+ *                   example: 10
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 5
+ *                 totalResults:
+ *                   type: integer
+ *                   example: 50
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
  *       "401":
- *         description: Unauthorized access - invalid token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/responses/Unauthorized'
+ *         $ref: '#/components/responses/Unauthorized'
  *       "403":
- *         description: Forbidden - the user doesn't have access
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/responses/Forbidden'
+ *         $ref: '#/components/responses/Forbidden'
  *       "404":
- *         description: Not found - endpoint does not exist
+ *         $ref: '#/components/responses/NotFound'
  *       "500":
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 
 /**
