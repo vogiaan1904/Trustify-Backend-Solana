@@ -7,9 +7,6 @@ const createUser = {
     password: Joi.string().required().custom(password),
     name: Joi.string().required(),
     role: Joi.string().required().valid('user', 'admin'),
-    citizenId: Joi.string().required(),
-    phoneNumber: Joi.string().required(),
-    address: Joi.string().required(),
     status: Joi.string().valid('active', 'inactive', 'suspended', 'deleted').default('active'),
   }),
 };
@@ -39,6 +36,16 @@ const updateUser = {
       email: Joi.string().email(),
       password: Joi.string().custom(password),
       name: Joi.string(),
+      citizenId: Joi.string().optional(),
+      phoneNumber: Joi.string().optional(),
+      address: Joi.object()
+        .keys({
+          province: Joi.string(),
+          district: Joi.string(),
+          town: Joi.string(),
+          street: Joi.string(),
+        })
+        .optional(),
     })
     .min(1),
 };

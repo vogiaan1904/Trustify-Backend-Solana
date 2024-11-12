@@ -47,6 +47,7 @@ const userSchema = mongoose.Schema(
     citizenId: {
       type: String,
       trim: true,
+      required: false,
     },
     phoneNumber: {
       type: String,
@@ -56,10 +57,29 @@ const userSchema = mongoose.Schema(
           throw new Error('Invalid phone number');
         }
       },
+      required: false,
     },
     address: {
-      type: String,
-      trim: true,
+      province: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      district: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      town: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      street: {
+        type: String,
+        trim: true,
+        required: false,
+      },
     },
     status: {
       type: String,
