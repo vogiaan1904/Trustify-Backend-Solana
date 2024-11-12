@@ -119,7 +119,7 @@ const searchUsersByEmail = async (input) => {
 
     const regex = new RegExp(`^${escapedInput}`, 'i');
 
-    const users = await User.find({ email: regex }, 'id name role email');
+    const users = await User.find({ email: regex }, 'id name role email citizenId phoneNumber address');
 
     if (users.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'No users found with the provided input');

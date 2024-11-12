@@ -36,7 +36,16 @@ const updateUser = {
       email: Joi.string().email(),
       password: Joi.string().custom(password),
       name: Joi.string(),
-      status: Joi.string().valid('active', 'inactive'),
+      citizenId: Joi.string().optional(),
+      phoneNumber: Joi.string().optional(),
+      address: Joi.object()
+        .keys({
+          province: Joi.string(),
+          district: Joi.string(),
+          town: Joi.string(),
+          street: Joi.string(),
+        })
+        .optional(),
     })
     .min(1),
 };
