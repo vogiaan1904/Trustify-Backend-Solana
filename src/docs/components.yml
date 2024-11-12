@@ -28,7 +28,16 @@ components:
         phoneNumber:
           type: string
         address:
-          type: string
+          type: object
+          properties:
+            province:
+              type: string
+            district:
+              type: string
+            town:
+              type: string
+            street:
+              type: string
       example:
         id: 5ebac534954b54139806c112
         email: fake@example.com
