@@ -270,7 +270,7 @@ const getEmployeeList = async (filter, options) => {
     const totalPages = Math.ceil(totalResults / limit);
 
     const employeeList = await User.find(queryFilter)
-      .sort({ [sortBy]: sortOrder })
+      .sort({ [sortBy]: sortOrder, _id: 1 })
       .skip(skip)
       .limit(Number(limit));
 
