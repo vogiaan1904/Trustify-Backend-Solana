@@ -9,8 +9,6 @@ const {
   NotarizationField,
   NotarizationService,
   Payment,
-  StatusTracking,
-  ApproveHistory,
 } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
