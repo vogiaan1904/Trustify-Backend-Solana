@@ -11,3 +11,4 @@ module.exports.notarizationServiceService = require('./notarizationService.servi
 module.exports.adminService = require('./admin.service');
 module.exports.paymentService = require('./payment.service');
 module.exports.locationService = require('./location.service');
+module.exports.cronService = require('./cron.service');

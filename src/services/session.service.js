@@ -8,12 +8,14 @@ const {
   RequestSessionSignature,
   NotarizationField,
   NotarizationService,
+  Payment,
+  StatusTracking,
+  ApproveHistory,
 } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
 const emailService = require('./email.service');
 const { payOS } = require('../config/payos');
-const Payment = require('../models/payment.model');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const statusTranslations = {
@@ -892,6 +894,40 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
   }
 };
 
+const autoForwardSessionStatus = async () => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+
+    const pendingSessions = await SessionStatusTracking.find({
+      status: 'pending',
+      updatedAt: { $lte: oneMinuteAgo },
+    });
+
+    const updatePromises = pendingSessions.map(async (tracking) => {
+      const updatedTracking = {
+        ...tracking.toObject(),
+        status: 'verification',
+        updatedAt: new Date(),
+      };
+      await SessionStatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+
+      const approveSessionHistory = new ApproveSessionHistory({
+        userId: null,
+        sessionId: tracking.sessionId,
+        beforeStatus: 'pending',
+        afterStatus: 'verification',
+      });
+      await approveSessionHistory.save();
+    });
+
+    console.log(`Auto-forwarded ${updatePromises.length} sessions from 'pending' to 'verification' status`);
+
+    await Promise.all(updatePromises);
+  } catch (error) {
+    console.error('Error auto-forwarding sessions:', error.message);
+  }
+};
+
 module.exports = {
   validateEmails,
   findBySessionId,
@@ -915,4 +951,5 @@ module.exports = {
   forwardSessionStatus,
   approveSignatureSessionByUser,
   approveSignatureSessionBySecretary,
+  autoForwardSessionStatus,
 };
