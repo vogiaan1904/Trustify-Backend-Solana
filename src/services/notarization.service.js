@@ -1,4 +1,5 @@
 const httpStatus = require('http-status');
+const mongoose = require('mongoose');
 const { ObjectId } = require('mongoose').Types;
 const emailService = require('./email.service');
 const { Document, StatusTracking, ApproveHistory, NotarizationService, NotarizationField } = require('../models');
@@ -131,7 +132,39 @@ const createStatusTracking = async (documentId, status) => {
 };
 
 const getHistoryByUserId = async (userId) => {
-  return Document.find({ userId });
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
+
+    const history = await Document.aggregate([
+      {
+        $match: { userId: new mongoose.Types.ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: 'statustrackings',
+          localField: '_id',
+          foreignField: 'documentId',
+          as: 'status',
+          pipeline: [{ $sort: { updatedAt: -1 } }, { $limit: 1 }],
+        },
+      },
+      {
+        $addFields: {
+          status: { $arrayElemAt: ['$status', 0] },
+        },
+      },
+    ]);
+
+    return history;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error fetching history by user ID:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to fetch history by user ID');
+  }
 };
 
 const getHistoryWithStatus = async (userId) => {

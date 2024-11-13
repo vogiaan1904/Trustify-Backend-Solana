@@ -49,8 +49,12 @@ router.route('/upload-files').post(
 
 router
   .route('/history')
+  .get(auth('viewNotarizationHistory'), validate(notarizationValidation.getHistory), notarizationController.getHistory);
+
+router
+  .route('/get-history-by-user-id/:userId')
   .get(
-    auth('viewNotarizationHistory'),
+    auth('viewNotarizationHistoryByUserId'),
     validate(notarizationValidation.getHistoryByUserId),
     notarizationController.getHistoryByUserId
   );
@@ -573,6 +577,40 @@ router
  *     responses:
  *       "200":
  *         description: Notarization history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Notarizations'
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /notarization/get-history-by-user-id/{userId}:
+ *   get:
+ *     summary: Get notarization history by user ID
+ *     tags: [Notarizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: userId
+ *         in: path
+ *         description: User ID for retrieving notarization history
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       "200":
+ *         description: Notarization history for the user retrieved successfully
  *         content:
  *           application/json:
  *             schema:

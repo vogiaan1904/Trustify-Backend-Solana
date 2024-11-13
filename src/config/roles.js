@@ -46,6 +46,7 @@ const allRoles = {
     'approveSignatureBySecretary',
     'getPaymentTotalByNotarizationField',
     'getSessionStatus',
+    'viewNotarizationHistoryByUserId',
   ],
   notary: [
     'getDocumentsByRole',
