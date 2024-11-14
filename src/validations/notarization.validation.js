@@ -32,7 +32,7 @@ const createDocument = {
   }),
 };
 
-const getHistoryByUserId = {
+const getHistory = {
   headers: Joi.object().keys({
     userId: Joi.string().required(),
   }),
@@ -65,10 +65,17 @@ const approveSignatureBySecretary = {
   }),
 };
 
+const getHistoryByUserId = {
+  params: Joi.object().keys({
+    userId: Joi.string().required(),
+  }),
+};
+
 module.exports = {
   createDocument,
-  getHistoryByUserId,
+  getHistory,
   forwardDocumentStatus,
   approveSignatureByUser,
   approveSignatureBySecretary,
+  getHistoryByUserId,
 };

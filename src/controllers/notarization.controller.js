@@ -22,9 +22,14 @@ const createDocument = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(document);
 });
 
-// Controller function to get history by user ID
-const getHistoryByUserId = catchAsync(async (req, res) => {
+const getHistory = catchAsync(async (req, res) => {
   const userId = req.user.id;
+  const history = await notarizationService.getHistoryByUserId(userId);
+  res.status(httpStatus.OK).send(history);
+});
+
+const getHistoryByUserId = catchAsync(async (req, res) => {
+  const { userId } = req.params;
   const history = await notarizationService.getHistoryByUserId(userId);
   res.status(httpStatus.OK).send(history);
 });
@@ -93,6 +98,7 @@ const approveSignatureBySecretary = catchAsync(async (req, res) => {
 
 module.exports = {
   createDocument,
+  getHistory,
   getHistoryByUserId,
   getDocumentStatus,
   getDocumentByRole,
