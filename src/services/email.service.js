@@ -34,6 +34,7 @@ const sendEmail = async (to, subject, html) => {
 const loadTemplate = async (templateName, replacements) => {
   const filePath = path.join(__dirname, '..', 'public', 'templates', `${templateName}.html`);
   let template = await fs.readFile(filePath, 'utf8');
+  // eslint-disable-next-line guard-for-in, no-restricted-syntax
   for (const key in replacements) {
     template = template.replace(new RegExp(`{{${key}}}`, 'g'), replacements[key]);
   }
