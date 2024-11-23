@@ -71,6 +71,12 @@ const getHistoryByUserId = {
   }),
 };
 
+const getHistoryWithStatus = {
+  headers: Joi.object().keys({
+    userId: Joi.string().required(),
+  }),
+};
+
 module.exports = {
   createDocument,
   getHistory,
@@ -78,4 +84,5 @@ module.exports = {
   approveSignatureByUser,
   approveSignatureBySecretary,
   getHistoryByUserId,
+  getHistoryWithStatus,
 };

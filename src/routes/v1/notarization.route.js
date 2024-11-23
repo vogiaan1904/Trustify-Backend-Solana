@@ -63,7 +63,7 @@ router
   .route('/get-history-with-status')
   .get(
     auth('viewNotarizationHistory'),
-    validate(notarizationValidation.getHistoryByUserId),
+    validate(notarizationValidation.getHistoryWithStatus),
     notarizationController.getHistoryWithStatus
   );
 
