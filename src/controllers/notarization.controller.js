@@ -85,14 +85,14 @@ const getAllNotarizations = catchAsync(async (req, res) => {
 });
 
 const approveSignatureByUser = catchAsync(async (req, res) => {
-  const { documentId, amount } = req.body;
+  const { documentId } = req.body;
   const signatureImage = req.file.originalname;
-  const requestApproved = await notarizationService.approveSignatureByUser(documentId, amount, signatureImage);
+  const requestApproved = await notarizationService.approveSignatureByUser(documentId, signatureImage);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 
-const approveSignatureBySecretary = catchAsync(async (req, res) => {
-  const requestApproved = await notarizationService.approveSignatureBySecretary(req.body.documentId, req.user.id);
+const approveSignatureByNotary = catchAsync(async (req, res) => {
+  const requestApproved = await notarizationService.approveSignatureByNotary(req.body.documentId, req.user.id);
   res.status(httpStatus.OK).send(requestApproved);
 });
 
@@ -106,6 +106,6 @@ module.exports = {
   getApproveHistory,
   getAllNotarizations,
   approveSignatureByUser,
-  approveSignatureBySecretary,
+  approveSignatureByNotary,
   getHistoryWithStatus,
 };

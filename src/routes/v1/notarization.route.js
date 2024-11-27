@@ -94,12 +94,12 @@ router
   );
 
 router
-  .route('/approve-signature-by-secretary')
+  .route('/approve-signature-by-notary')
   .post(
-    auth('approveSignatureBySecretary'),
+    auth('approveSignatureByNotary'),
     upload.none(),
-    validate(notarizationValidation.approveSignatureBySecretary),
-    notarizationController.approveSignatureBySecretary
+    validate(notarizationValidation.approveSignatureByNotary),
+    notarizationController.approveSignatureByNotary
   );
 /**
  * @swagger
@@ -517,9 +517,6 @@ router
  *               documentId:
  *                 type: string
  *                 description: ID of the document to approve
- *               amount:
- *                 type: number
- *                 description: Amount of the document to approve
  *               signatureImage:
  *                 type: string
  *                 format: binary
@@ -549,9 +546,9 @@ router
 
 /**
  * @swagger
- * /notarization/approve-signature-by-secretary:
+ * /notarization/approve-signature-by-notary:
  *   post:
- *     summary: Approve signature by secretary
+ *     summary: Approve signature by notary
  *     tags: [Notarizations]
  *     security:
  *       - bearerAuth: []

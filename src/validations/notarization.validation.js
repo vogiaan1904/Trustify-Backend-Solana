@@ -60,11 +60,10 @@ const forwardDocumentStatus = {
 const approveSignatureByUser = {
   body: Joi.object().keys({
     documentId: Joi.string().required(),
-    amount: Joi.number().required(),
   }),
 };
 
-const approveSignatureBySecretary = {
+const approveSignatureByNotary = {
   body: Joi.object().keys({
     documentId: Joi.string().required(),
   }),
@@ -87,7 +86,7 @@ module.exports = {
   getHistory,
   forwardDocumentStatus,
   approveSignatureByUser,
-  approveSignatureBySecretary,
+  approveSignatureByNotary,
   getHistoryByUserId,
   getHistoryWithStatus,
 };

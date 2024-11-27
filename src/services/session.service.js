@@ -16,14 +16,6 @@ const emailService = require('./email.service');
 const { payOS } = require('../config/payos');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const statusTranslations = {
-  pending: 'Chờ xử lý',
-  processing: 'Đang xử lý',
-  verification: 'Đang xác minh',
-  digitalSignature: 'Sẵn sàng ký số',
-  completed: 'Hoàn tất',
-  rejected: 'Không hợp lệ',
-};
 
 const generateOrderCode = () => {
   const MAX_SAFE_INTEGER = 9007199254740991;

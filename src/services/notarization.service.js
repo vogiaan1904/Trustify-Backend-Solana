@@ -209,9 +209,7 @@ const getDocumentByRole = async (role) => {
     let statusFilter = [];
 
     if (role === 'notary') {
-      statusFilter = ['processing'];
-    } else if (role === 'secretary') {
-      statusFilter = ['pending', 'verification', 'digitalSignature'];
+      statusFilter = ['pending', 'digitalSignature', 'processing'];
     } else {
       throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
     }
@@ -241,10 +239,9 @@ const getDocumentByRole = async (role) => {
 };
 const forwardDocumentStatus = async (documentId, action, role, userId, feedback) => {
   try {
-    const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
+    const validStatuses = ['pending', 'processing', 'digitalSignature', 'completed'];
     const roleStatusMap = {
-      notary: ['processing'],
-      secretary: ['pending', 'verification', 'digitalSignature'],
+      notary: ['pending', 'processing', 'digitalSignature'],
     };
 
     // Fetch current status once and reuse
@@ -254,7 +251,7 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
     }
 
     // Validate role permissions
-    if (!roleStatusMap[role]?.includes(currentStatus.status)) {
+    if (!roleStatusMap[role].includes(currentStatus.status)) {
       throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
     }
 
@@ -302,7 +299,7 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
       StatusTracking.updateOne({ documentId }, updateData),
     ]);
 
-    if (!email?.requesterInfo?.email) {
+    if (!email.requesterInfo.email) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
@@ -394,7 +391,7 @@ const getAllNotarizations = async (filter, options) => {
   };
 };
 
-const approveSignatureByUser = async (documentId, amount, signatureImage) => {
+const approveSignatureByUser = async (documentId, signatureImage) => {
   try {
     console.log(signatureImage);
     const statusTracking = await StatusTracking.findOne({ documentId });
@@ -412,10 +409,9 @@ const approveSignatureByUser = async (documentId, amount, signatureImage) => {
 
       const newRequestSignature = new RequestSignature({
         documentId,
-        amount,
         signatureImage,
         approvalStatus: {
-          secretary: {
+          notary: {
             approved: false,
             approvedAt: null,
           },
@@ -444,7 +440,7 @@ const approveSignatureByUser = async (documentId, amount, signatureImage) => {
   }
 };
 
-const approveSignatureBySecretary = async (documentId, userId) => {
+const approveSignatureByNotary = async (documentId, userId) => {
   try {
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
@@ -471,40 +467,40 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already been paid');
     }
 
-    // Create a new payment object
-    const payment = new Payment({
-      orderCode: generateOrderCode(),
-      amount: document.notarizationService.price * requestSignature.amount,
-      description: `${document._id}`,
-      returnUrl: `${process.env.SERVER_URL}/success.html`,
-      cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
-      userId,
-      documentId,
-      serviceId: document.notarizationService.id,
-      fieldId: document.notarizationField.id,
-    });
+    // // Create a new payment object
+    // const payment = new Payment({
+    //   orderCode: generateOrderCode(),
+    //   amount: document.notarizationService.price * requestSignature.amount,
+    //   description: `${document._id}`,
+    //   returnUrl: `${process.env.SERVER_URL}/success.html`,
+    //   cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
+    //   userId,
+    //   documentId,
+    //   serviceId: document.notarizationService.id,
+    //   fieldId: document.notarizationField.id,
+    // });
 
-    await payment.save();
+    // await payment.save();
 
-    // Create a payment link using PayOS
-    const paymentLinkResponse = await payOS.createPaymentLink({
-      orderCode: payment.orderCode,
-      amount: payment.amount,
-      description: payment.description,
-      returnUrl: payment.returnUrl,
-      cancelUrl: payment.cancelUrl,
-    });
+    // // Create a payment link using PayOS
+    // const paymentLinkResponse = await payOS.createPaymentLink({
+    //   orderCode: payment.orderCode,
+    //   amount: payment.amount,
+    //   description: payment.description,
+    //   returnUrl: payment.returnUrl,
+    //   cancelUrl: payment.cancelUrl,
+    // });
 
-    payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    await payment.save();
+    // payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    // await payment.save();
 
-    console.log(paymentLinkResponse);
+    // console.log(paymentLinkResponse);
 
-    document.payment = payment._id;
-    document.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    document.orderCode = payment.orderCode;
-    await document.save();
-    console.log(document);
+    // document.payment = payment._id;
+    // document.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    // document.orderCode = payment.orderCode;
+    // await document.save();
+    // console.log(document);
 
     await StatusTracking.updateOne(
       { documentId },
@@ -521,7 +517,7 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       afterStatus: 'completed',
     });
 
-    requestSignature.approvalStatus.secretary = {
+    requestSignature.approvalStatus.notary = {
       approved: true,
       approvedAt: new Date(),
     };
@@ -536,18 +532,18 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
-    await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
+    // await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
 
     return {
-      message: 'Secretary approved and signed the document successfully',
+      message: 'Notary approved and signed the document successfully',
       documentId,
     };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve signature by secretary:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by secretary');
+    console.error('Error approve signature by notary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by notary');
   }
 };
 
@@ -600,7 +596,7 @@ module.exports = {
   getApproveHistory,
   getAllNotarizations,
   approveSignatureByUser,
-  approveSignatureBySecretary,
+  approveSignatureByNotary,
   getHistoryWithStatus,
   autoForwardPendingToVerification,
 };
