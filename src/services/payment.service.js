@@ -83,6 +83,36 @@ const updatePaymentStatus = async (paymentId, status) => {
   }
 };
 
+const getPaymentStatus = async (paymentId) => {
+  try {
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Payment not found');
+    }
+
+    if (!payment.checkoutUrl) {
+      return { status: 'SKIPPED', message: 'No checkoutUrl' };
+    }
+
+    const paymentStatusResponse = await payOS.getPaymentLinkInformation(payment.orderCode);
+
+    if (paymentStatusResponse.status === 'PAID') {
+      await updatePaymentStatus(paymentId, 'success');
+    } else if (paymentStatusResponse.status === 'CANCELLED') {
+      await updatePaymentStatus(paymentId, 'cancelled');
+    } else if (paymentStatusResponse.status === 'FAILED') {
+      await updatePaymentStatus(paymentId, 'failed');
+    }
+    return paymentStatusResponse;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error getting payment status:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to get payment status');
+  }
+};
+
 const updateAllPayments = async () => {
   try {
     const payments = await Payment.find();
@@ -125,36 +155,6 @@ const updateAllPayments = async () => {
   } catch (error) {
     console.error('Error updating payments:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to update payments');
-  }
-};
-
-const getPaymentStatus = async (paymentId) => {
-  try {
-    const payment = await Payment.findById(paymentId);
-    if (!payment) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Payment not found');
-    }
-
-    if (!payment.checkoutUrl) {
-      return { status: 'SKIPPED', message: 'No checkoutUrl' };
-    }
-
-    const paymentStatusResponse = await payOS.getPaymentLinkInformation(payment.orderCode);
-
-    if (paymentStatusResponse.status === 'PAID') {
-      await updatePaymentStatus(paymentId, 'success');
-    } else if (paymentStatusResponse.status === 'CANCELLED') {
-      await updatePaymentStatus(paymentId, 'cancelled');
-    } else if (paymentStatusResponse.status === 'FAILED') {
-      await updatePaymentStatus(paymentId, 'failed');
-    }
-    return paymentStatusResponse;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    console.error('Error getting payment status:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to get payment status');
   }
 };
 
