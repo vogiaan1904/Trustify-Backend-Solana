@@ -17,8 +17,20 @@ const updatePaymentStatus = catchAsync(async (req, res) => {
   res.send(payment);
 });
 
+const getPaymentStatus = catchAsync(async (req, res) => {
+  const payment = await paymentService.getPaymentStatus(req.params.paymentId);
+  res.send(payment);
+});
+
+const updateAllPayments = catchAsync(async (req, res) => {
+  const payments = await paymentService.updateAllPayments();
+  res.send(payments);
+});
+
 module.exports = {
   createPayment,
   getPayment,
   updatePaymentStatus,
+  getPaymentStatus,
+  updateAllPayments,
 };
