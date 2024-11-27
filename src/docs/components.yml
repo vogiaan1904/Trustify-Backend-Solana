@@ -103,6 +103,9 @@ components:
         createdAt:
           type: string
           format: date-time
+        amount:
+          type: number
+          format: float
         status:
           type: object
           enum:
@@ -197,6 +200,12 @@ components:
         description:
           type: string
           description: A brief description of the notarization field.
+        name_en:
+          type: string
+          description: The name of the notarization field in English.
+        code:
+          type: string
+          description: A unique code for the notarization field.
       required:
         - id
         - name
@@ -224,6 +233,14 @@ components:
           type: number
           format: float
           description: Price of the notarization service
+        code:
+          type: string
+          description: Unique code for the notarization service
+        required_documents:
+          type: array
+          items:
+            type: string
+          description: List of required documents for the notarization service
       required:
         - name
         - fieldId
