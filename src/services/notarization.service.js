@@ -393,7 +393,9 @@ const getAllNotarizations = async (filter, options) => {
 
 const approveSignatureByUser = async (documentId, signatureImage) => {
   try {
-    console.log(signatureImage);
+    if (!ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
     if (statusTracking.status !== 'digitalSignature') {
@@ -442,6 +444,12 @@ const approveSignatureByUser = async (documentId, signatureImage) => {
 
 const approveSignatureByNotary = async (documentId, userId) => {
   try {
+    if (!ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
+    if (!ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
     if (statusTracking.status !== 'digitalSignature') {
