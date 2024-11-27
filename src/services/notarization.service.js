@@ -35,7 +35,7 @@ const createDocument = async (documentBody, files, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
     }
 
-    const { notarizationField, notarizationService, requesterInfo } = documentBody;
+    const { notarizationField, notarizationService, requesterInfo, amount } = documentBody;
 
     const notarizationFieldDoc = await NotarizationField.findById(notarizationField.id);
     if (!notarizationFieldDoc) {
@@ -78,11 +78,15 @@ const createDocument = async (documentBody, files, userId) => {
         fieldId: notarizationService.fieldId,
         description: notarizationService.description,
         price: notarizationService.price,
+        required_documents: notarizationService.required_documents,
+        code: notarizationService.code,
       },
       notarizationField: {
         id: notarizationField.id,
         name: notarizationField.name,
         description: notarizationField.description,
+        name_en: notarizationField.name_en,
+        code: notarizationField.code,
       },
       requesterInfo: {
         fullName: requesterInfo.fullName,
@@ -92,6 +96,7 @@ const createDocument = async (documentBody, files, userId) => {
       },
       userId,
       createdAt: Date.now(),
+      amount,
     });
 
     const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));

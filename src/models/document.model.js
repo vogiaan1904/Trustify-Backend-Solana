@@ -40,6 +40,25 @@ const documentSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      required_documents: {
+        type: [
+          {
+            type: String,
+            required: true,
+          },
+        ],
+        validate: {
+          validator(v) {
+            return v.every((doc) => typeof doc === 'string' || (typeof doc === 'object' && doc.name));
+          },
+          message: 'Required documents must be strings or objects with name property',
+        },
+      },
+
+      code: {
+        type: String,
+        required: true,
+      },
     },
     notarizationField: {
       id: {
@@ -53,6 +72,14 @@ const documentSchema = new mongoose.Schema(
         unique: true,
       },
       description: {
+        type: String,
+        required: true,
+      },
+      name_en: {
+        type: String,
+        required: true,
+      },
+      code: {
         type: String,
         required: true,
       },
@@ -78,6 +105,10 @@ const documentSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      required: true,
+    },
+    amount: {
+      type: Number,
       required: true,
     },
   },

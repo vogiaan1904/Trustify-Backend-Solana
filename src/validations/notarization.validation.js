@@ -3,7 +3,7 @@ const { objectId } = require('./custom.validation');
 
 const createDocument = {
   body: Joi.object().keys({
-    files: Joi.array().items(Joi.string()).required(),
+    files: Joi.array().required(),
     notarizationService: Joi.object()
       .keys({
         id: Joi.string().custom(objectId).required(),
@@ -11,6 +11,8 @@ const createDocument = {
         fieldId: Joi.string().custom(objectId).required(),
         description: Joi.string().required(),
         price: Joi.number().required(),
+        required_documents: Joi.array().items(Joi.string()).required(),
+        code: Joi.string().required(),
       })
       .required(),
     notarizationField: Joi.object()
@@ -18,6 +20,8 @@ const createDocument = {
         id: Joi.string().custom(objectId).required(),
         name: Joi.string().required(),
         description: Joi.string().required(),
+        code: Joi.string().required(),
+        name_en: Joi.string().required(),
       })
       .required(),
     requesterInfo: Joi.object()
@@ -29,6 +33,7 @@ const createDocument = {
       })
       .required(),
     userId: Joi.string().custom(objectId),
+    amount: Joi.number().required(),
   }),
 };
 

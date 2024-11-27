@@ -38,6 +38,7 @@ router.route('/upload-files').post(
     req.body.notarizationService = JSON.parse(req.body.notarizationService);
     req.body.notarizationField = JSON.parse(req.body.notarizationField);
     req.body.requesterInfo = JSON.parse(req.body.requesterInfo);
+    req.body.amount = Number(req.body.amount);
 
     req.body.files = req.files.map((file) => file.originalname);
 
@@ -128,38 +129,55 @@ router
  *                   id:
  *                     type: string
  *                     description: ObjectId of the related notarization field
- *                     example: "670aad2016bb592ef84ee39d"
+ *                     example: "6746f07ccc390609e20d08be"
  *                   name:
  *                     type: string
  *                     description: The name of the notarization field
- *                     example: "Hôn nhân gia đình"
+ *                     example: "Lĩnh vực Vay - mượn tài sản"
  *                   description:
  *                     type: string
  *                     description: The description of the notarization field
- *                     example: "This is an example description for the notarization field."
+ *                     example: "Bao gồm các dịch vụ công chứng liên quan đến việc vay mượn tài sản, đảm bảo tính pháp lý và thỏa thuận giữa các bên."
+ *                   name_en:
+ *                     type: string
+ *                     description: The English name of the notarization field
+ *                     example: "Asset Lending and Borrowing"
+ *                   code:
+ *                     type: string
+ *                     description: The code of the notarization field
+ *                     example: "asset_lending_borrowing"
  *               notarizationService:
  *                 type: object
  *                 properties:
  *                   id:
  *                     type: string
  *                     description: ObjectId of the related notarization service
- *                     example: "670a2ed9b2993b7b2051b3c7"
+ *                     example: "6746f2dbcc390609e20d08dc"
  *                   name:
  *                     type: string
  *                     description: The name of the notarization service
- *                     example: "Ly hôn - Ly thân"
+ *                     example: "Công chứng hợp đồng vay tài sản"
  *                   fieldId:
  *                     type: string
  *                     description: ObjectId of the related notarization field
- *                     example: "670aad2016bb592ef84ee39d"
+ *                     example: "6746f07ccc390609e20d08be"
  *                   description:
  *                     type: string
- *                     description: The description of the notarization service
- *                     example: "This is an example of a notarization service."
+ *                     description: "> Giấy tờ tùy thân: Chứng minh nhân dân (CMND) hoặc Căn cước công dân (CCCD) hoặc Hộ chiếu của bên vay và bên cho vay.\n+ Hộ khẩu thường trú: Bản sao có chứng thực của cả hai bên, hoặc sổ tạm trú nếu không có hộ khẩu tại địa phương.\n+ Giấy xác nhận tình trạng hôn nhân (nếu tài sản chung của vợ chồng).\n+ Hợp đồng vay tài sản (soạn sẵn hoặc nhờ văn phòng công chứng soạn thảo).\n+ Các thông tin về khoản vay: Số tiền vay, lãi suất, phương thức trả nợ, thời hạn vay."
  *                   price:
  *                     type: number
  *                     description: The price of the notarization service
  *                     example: 10000
+ *                   required_documents:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *                       description: The requested documents for the notarization service
+ *                     example: ["identity_doc", "residence_book", "marriage_cert", "loan_contract", "loan_info"]
+ *                   code:
+ *                     type: string
+ *                     description: The code of the notarization service
+ *                     example: "Loan_Contract"
  *               requesterInfo:
  *                 type: object
  *                 properties:
@@ -179,6 +197,10 @@ router
  *                     type: string
  *                     description: Email of the requester
  *                     example: "requester@example.com"
+ *               amount:
+ *                 type: number
+ *                 description: Amount of the document to notarize
+ *                 example: 10
  *     responses:
  *       "201":
  *         description: Documents uploaded successfully

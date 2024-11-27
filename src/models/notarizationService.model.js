@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('./plugins');
+const { required } = require('joi');
 
 const notarizationServiceSchema = new mongoose.Schema(
   {
@@ -21,6 +22,18 @@ const notarizationServiceSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    code: {
+      type: String,
+      required: true,
+    },
+    required_documents: [
+      {
+        name: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
   },
   { collection: 'notarizationServices' }
 );
