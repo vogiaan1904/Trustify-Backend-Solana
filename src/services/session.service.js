@@ -16,14 +16,6 @@ const emailService = require('./email.service');
 const { payOS } = require('../config/payos');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const statusTranslations = {
-  pending: 'Chờ xử lý',
-  processing: 'Đang xử lý',
-  verification: 'Đang xác minh',
-  digitalSignature: 'Sẵn sàng ký số',
-  completed: 'Hoàn tất',
-  rejected: 'Không hợp lệ',
-};
 
 const generateOrderCode = () => {
   const MAX_SAFE_INTEGER = 9007199254740991;
@@ -893,37 +885,39 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
 };
 
 const autoForwardSessionStatus = async () => {
-  try {
-    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+  // try {
+  //   const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
 
-    const pendingSessions = await SessionStatusTracking.find({
-      status: 'pending',
-      updatedAt: { $lte: oneMinuteAgo },
-    });
+  //   const pendingSessions = await SessionStatusTracking.find({
+  //     status: 'pending',
+  //     updatedAt: { $lte: oneMinuteAgo },
+  //   });
 
-    const updatePromises = pendingSessions.map(async (tracking) => {
-      const updatedTracking = {
-        ...tracking.toObject(),
-        status: 'verification',
-        updatedAt: new Date(),
-      };
-      await SessionStatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+  //   const updatePromises = pendingSessions.map(async (tracking) => {
+  //     const updatedTracking = {
+  //       ...tracking.toObject(),
+  //       status: 'verification',
+  //       updatedAt: new Date(),
+  //     };
+  //     await SessionStatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
 
-      const approveSessionHistory = new ApproveSessionHistory({
-        userId: null,
-        sessionId: tracking.sessionId,
-        beforeStatus: 'pending',
-        afterStatus: 'verification',
-      });
-      await approveSessionHistory.save();
-    });
+  //     const approveSessionHistory = new ApproveSessionHistory({
+  //       userId: null,
+  //       sessionId: tracking.sessionId,
+  //       beforeStatus: 'pending',
+  //       afterStatus: 'verification',
+  //     });
+  //     await approveSessionHistory.save();
+  //   });
 
-    console.log(`Auto-forwarded ${updatePromises.length} sessions from 'pending' to 'verification' status`);
+  //   console.log(`Auto-forwarded ${updatePromises.length} sessions from 'pending' to 'verification' status`);
 
-    await Promise.all(updatePromises);
-  } catch (error) {
-    console.error('Error auto-forwarding sessions:', error.message);
-  }
+  //   await Promise.all(updatePromises);
+  // } catch (error) {
+  //   console.error('Error auto-forwarding sessions:', error.message);
+  // }
+
+  console.log('Auto-forwarding sessions is disabled');
 };
 
 module.exports = {

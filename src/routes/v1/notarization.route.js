@@ -94,12 +94,12 @@ router
   );
 
 router
-  .route('/approve-signature-by-secretary')
+  .route('/approve-signature-by-notary')
   .post(
-    auth('approveSignatureBySecretary'),
+    auth('approveSignatureByNotary'),
     upload.none(),
-    validate(notarizationValidation.approveSignatureBySecretary),
-    notarizationController.approveSignatureBySecretary
+    validate(notarizationValidation.approveSignatureByNotary),
+    notarizationController.approveSignatureByNotary
   );
 /**
  * @swagger
@@ -264,22 +264,67 @@ router
  * @swagger
  * /notarization/getDocumentByRole:
  *   get:
- *     summary: Get all notarization documents by user role
+ *     summary: Get documents by user role
+ *     description: Retrieve documents based on user role and status filters
  *     tags: [Notarizations]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [processing, readyToSign, pendingSignature]
+ *         required: true
+ *         description: Filter documents by status
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Maximum number of documents per page
  *     responses:
  *       "200":
- *         $ref: '#/components/responses/Notarizations'
- *       "400":
- *         $ref: '#/components/responses/BadRequest'
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 documents:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Notarizations'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 7
+ *                     totalDocuments:
+ *                       type: integer
+ *                       example: 66
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
  *       "403":
- *         code: 403
- *         message: You do not have permission to access these documents
- *       "500":
- *         $ref: '#/components/responses/InternalServerError'
+ *         $ref: '#/components/responses/Forbidden'
+ *   "500":
+ *    $ref: '#/components/responses/InternalServerError'
  */
 
 /**
@@ -517,9 +562,6 @@ router
  *               documentId:
  *                 type: string
  *                 description: ID of the document to approve
- *               amount:
- *                 type: number
- *                 description: Amount of the document to approve
  *               signatureImage:
  *                 type: string
  *                 format: binary
@@ -549,9 +591,9 @@ router
 
 /**
  * @swagger
- * /notarization/approve-signature-by-secretary:
+ * /notarization/approve-signature-by-notary:
  *   post:
- *     summary: Approve signature by secretary
+ *     summary: Approve signature by notary
  *     tags: [Notarizations]
  *     security:
  *       - bearerAuth: []

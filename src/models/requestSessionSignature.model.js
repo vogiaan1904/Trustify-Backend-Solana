@@ -8,16 +8,12 @@ const requestSessionSignatureSchema = new mongoose.Schema(
       ref: 'Session',
       required: true,
     },
-    amount: {
-      type: Number,
-      required: true,
-    },
     signatureImage: {
       type: String,
       required: true,
     },
     approvalStatus: {
-      secretary: {
+      notary: {
         approved: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
       },

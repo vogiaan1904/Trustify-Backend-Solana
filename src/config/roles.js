@@ -57,18 +57,8 @@ const allRoles = {
     'getSessionStatus',
     'getSessionByRole',
     'forwardSessionStatus',
-  ],
-  secretary: [
-    'getDocumentsByRole',
-    'forwardDocumentStatus',
-    'getApproveHistory',
-    'joinSession',
-    'approveSignatureBySecretary',
-    'approveSignatureSessionBySecretary',
-    'getSessionBySessionId',
-    'getSessionStatus',
-    'getSessionByRole',
-    'forwardSessionStatus',
+    'approveSignatureByNotary',
+    'approveSignatureSessionNotary',
   ],
 };
 
