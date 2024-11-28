@@ -213,6 +213,8 @@ components:
         id: '12345'
         name: Notarization Field Example
         description: This is an example description for the notarization field.
+        name_en: Notarization Field Example
+        code: '12345'
     NotarizationService:
       type: object
       properties:
@@ -252,6 +254,10 @@ components:
         fieldId: 5f2b2b23c3a2b16f2e143b67
         description: This is an example of a notarization service.
         price: 10000
+        code: '12345'
+        required_documents:
+          - Document 1
+          - Document 2
     Payment:
       type: object
       required:

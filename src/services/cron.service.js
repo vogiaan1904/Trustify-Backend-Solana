@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { Token } = require('../models');
-const { autoForwardPendingToVerification } = require('./notarization.service');
+const { autoVerifyDocument } = require('./notarization.service');
 const { autoForwardSessionStatus } = require('./session.service');
 
 const deleteExpiredTokens = async () => {
@@ -24,10 +24,10 @@ const deleteExpiredTokens = async () => {
 
 const startCronJob = () => {
   cron.schedule('0 0 * * *', deleteExpiredTokens);
+  // 1 minute for testing
+  cron.schedule('* * * * *', autoVerifyDocument);
 
-  cron.schedule('* * * * *', autoForwardPendingToVerification);
-
-  cron.schedule('* * * * *', autoForwardSessionStatus);
+  // cron.schedule('* * * * *', autoForwardSessionStatus);
 };
 
 module.exports = { startCronJob };

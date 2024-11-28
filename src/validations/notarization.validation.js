@@ -81,6 +81,14 @@ const getHistoryWithStatus = {
   }),
 };
 
+const getDocumentByRole = {
+  query: Joi.object().keys({
+    status: Joi.string().valid('processing', 'readyToSign', 'pendingSignature'),
+    page: Joi.number().min(1).default(1),
+    limit: Joi.number().min(1).max(100).default(10),
+  }),
+};
+
 module.exports = {
   createDocument,
   getHistory,
@@ -89,4 +97,5 @@ module.exports = {
   approveSignatureByNotary,
   getHistoryByUserId,
   getHistoryWithStatus,
+  getDocumentByRole,
 };

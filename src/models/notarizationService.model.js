@@ -26,14 +26,11 @@ const notarizationServiceSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    required_documents: [
-      {
-        name: {
-          type: String,
-          required: true,
-        },
-      },
-    ],
+    required_documents: {
+      type: [String],
+      required: true,
+      default: [],
+    },
   },
   { collection: 'notarizationServices' }
 );

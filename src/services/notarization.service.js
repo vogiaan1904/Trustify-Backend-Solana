@@ -204,39 +204,101 @@ const getDocumentStatus = async (documentId) => {
   }
 };
 
-const getDocumentByRole = async (role) => {
+const getTotalDocuments = async (status) => {
+  const countQueries = {
+    processing: () => StatusTracking.countDocuments({ status: 'processing' }),
+    readyToSign: () =>
+      RequestSignature.countDocuments({
+        'approvalStatus.notary.approved': true,
+        'approvalStatus.user.approved': true,
+      }),
+    pendingSignature: () =>
+      RequestSignature.countDocuments({
+        $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+      }),
+  };
+
+  return countQueries[status]();
+};
+
+const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
   try {
-    let statusFilter = [];
+    // Ensure limit and page are converted to numbers
+    limit = Number(limit);
+    page = Number(page);
 
-    if (role === 'notary') {
-      statusFilter = ['pending', 'digitalSignature', 'processing'];
-    } else {
-      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+    // Validate limit and page
+    if (isNaN(limit) || limit <= 0) {
+      limit = 10; // Default to 10 if invalid
     }
 
-    const statusTrackings = await StatusTracking.find({ status: { $in: statusFilter } });
+    if (isNaN(page) || page <= 0) {
+      page = 1; // Default to 1 if invalid
+    }
 
-    const documentIds = statusTrackings.map((tracking) => tracking.documentId);
+    const skipDocuments = (page - 1) * limit;
 
-    const documents = await Document.find({ _id: { $in: documentIds } });
+    const statusQueries = {
+      processing: async () => {
+        const documents = await StatusTracking.find({ status: 'processing' })
+          .skip(skipDocuments)
+          .limit(limit)
+          .populate('documentId'); // Added populate to get document details
 
-    const result = documents.map((doc) => {
-      const statusTracking = statusTrackings.find((tracking) => tracking.documentId.toString() === doc._id.toString());
-      return {
-        ...doc.toObject(),
-        status: statusTracking.status,
-      };
-    });
+        return documents;
+      },
+      readyToSign: async () => {
+        const documents = await RequestSignature.find({
+          'approvalStatus.notary.approved': false,
+          'approvalStatus.user.approved': true,
+        })
+          .populate('documentId')
+          .skip(skipDocuments)
+          .limit(limit)
+          .sort({ createdAt: -1 });
 
-    return result;
+        return documents;
+      },
+      pendingSignature: async () => {
+        const documents = await RequestSignature.find({
+          $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+        })
+          .populate('documentId')
+          .skip(skipDocuments)
+          .limit(limit)
+          .sort({ createdAt: -1 });
+
+        return documents;
+      },
+      // Handle the case where no status is provided
+      default: async () => {
+        // Implement logic to fetch all documents (or return an error)
+        const documents = await Document.find().skip(skipDocuments).limit(limit);
+        return documents;
+      },
+    };
+
+    // Execute the query based on status or default
+    const documents = await (status && statusQueries[status] ? statusQueries[status]() : statusQueries.default());
+
+    // Count total documents for pagination.  This needs to be adjusted based on how you handle the default case.
+    const totalDocuments = await getTotalDocuments(status || 'default'); // Pass 'default' if status is undefined
+
+    return {
+      documents,
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(totalDocuments / limit),
+        totalDocuments,
+      },
+    };
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    console.error('Error retrieving documents by role:', error.message);
+    console.error('Error retrieving documents:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve documents');
   }
 };
+
 const forwardDocumentStatus = async (documentId, action, role, userId, feedback) => {
   try {
     const validStatuses = ['pending', 'processing', 'digitalSignature', 'completed'];
@@ -263,6 +325,12 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
       }
 
       const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
+
+      // Disallow forwarding from 'digitalSignature' to 'completed'
+      if (currentStatus.status === 'digitalSignature') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot forward from digitalSignature to completed');
+      }
+
       newStatus = validStatuses[currentStatusIndex + 1];
 
       if (!newStatus) {
@@ -275,6 +343,24 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
       newStatus = 'rejected';
     } else {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
+    }
+
+    if (newStatus === 'digitalSignature') {
+      const newRequestSignature = new RequestSignature({
+        documentId,
+        signatureImage: null,
+        approvalStatus: {
+          notary: {
+            approved: false,
+            approvedAt: null,
+          },
+          user: {
+            approved: false,
+            approvedAt: null,
+          },
+        },
+      });
+      await newRequestSignature.save();
     }
 
     // Create approve history
@@ -396,43 +482,34 @@ const approveSignatureByUser = async (documentId, signatureImage) => {
     if (!ObjectId.isValid(documentId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
     }
+
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
     if (statusTracking.status !== 'digitalSignature') {
       throw new ApiError(httpStatus.CONFLICT, 'Document is not ready for digital signature');
     }
 
-    let requestSignature = await RequestSignature.findOne({ documentId });
-
+    const requestSignature = await RequestSignature.findOne({ documentId });
     if (!requestSignature) {
-      if (!signatureImage || signatureImage.length === 0) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No signature image provided');
-      }
-
-      const newRequestSignature = new RequestSignature({
-        documentId,
-        signatureImage,
-        approvalStatus: {
-          notary: {
-            approved: false,
-            approvedAt: null,
-          },
-          user: {
-            approved: true,
-            approvedAt: new Date(),
-          },
-        },
-      });
-
-      await newRequestSignature.save();
-      requestSignature = await RequestSignature.findOne({ documentId });
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the document yet');
     }
 
-    requestSignature.signatureImage = signatureImage || requestSignature.signatureImage;
+    if (requestSignature.approvalStatus.user.approved) {
+      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has already approved the document');
+    }
+
+    requestSignature.signatureImage = signatureImage;
+    requestSignature.approvalStatus.user = {
+      approved: true,
+      approvedAt: new Date(),
+    };
 
     await requestSignature.save();
 
-    return requestSignature;
+    return {
+      message: 'User approved and signed the document successfully',
+      documentId,
+    };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -475,40 +552,40 @@ const approveSignatureByNotary = async (documentId, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already been paid');
     }
 
-    // // Create a new payment object
-    // const payment = new Payment({
-    //   orderCode: generateOrderCode(),
-    //   amount: document.notarizationService.price * requestSignature.amount,
-    //   description: `${document._id}`,
-    //   returnUrl: `${process.env.SERVER_URL}/success.html`,
-    //   cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
-    //   userId,
-    //   documentId,
-    //   serviceId: document.notarizationService.id,
-    //   fieldId: document.notarizationField.id,
-    // });
+    // Create a new payment object
+    const payment = new Payment({
+      orderCode: generateOrderCode(),
+      amount: document.notarizationService.price * document.amount,
+      description: `${document._id}`,
+      returnUrl: `${process.env.SERVER_URL}/success.html`,
+      cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
+      userId,
+      documentId,
+      serviceId: document.notarizationService.id,
+      fieldId: document.notarizationField.id,
+    });
 
-    // await payment.save();
+    await payment.save();
 
-    // // Create a payment link using PayOS
-    // const paymentLinkResponse = await payOS.createPaymentLink({
-    //   orderCode: payment.orderCode,
-    //   amount: payment.amount,
-    //   description: payment.description,
-    //   returnUrl: payment.returnUrl,
-    //   cancelUrl: payment.cancelUrl,
-    // });
+    // Create a payment link using PayOS
+    const paymentLinkResponse = await payOS.createPaymentLink({
+      orderCode: payment.orderCode,
+      amount: payment.amount,
+      description: payment.description,
+      returnUrl: payment.returnUrl,
+      cancelUrl: payment.cancelUrl,
+    });
 
-    // payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    // await payment.save();
+    payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    await payment.save();
 
-    // console.log(paymentLinkResponse);
+    console.log(paymentLinkResponse);
 
-    // document.payment = payment._id;
-    // document.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    // document.orderCode = payment.orderCode;
-    // await document.save();
-    // console.log(document);
+    document.payment = payment._id;
+    document.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    document.orderCode = payment.orderCode;
+    await document.save();
+    console.log(document);
 
     await StatusTracking.updateOne(
       { documentId },
@@ -540,7 +617,7 @@ const approveSignatureByNotary = async (documentId, userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
-    // await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
+    await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
 
     return {
       message: 'Notary approved and signed the document successfully',
@@ -555,41 +632,84 @@ const approveSignatureByNotary = async (documentId, userId) => {
   }
 };
 
-const autoForwardPendingToVerification = async () => {
+const autoVerifyDocument = async () => {
   try {
     const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
 
-    // Find documents with status 'pending' and updatedAt older than 1 minute ago
-    const pendingDocuments = await StatusTracking.find({
-      status: 'pending',
-      updatedAt: { $lte: oneMinuteAgo },
-    });
+    const pendingDocuments = await StatusTracking.aggregate([
+      {
+        $match: {
+          status: 'pending',
+          updatedAt: { $lt: oneMinuteAgo },
+        },
+      },
+      {
+        $lookup: {
+          from: 'documents',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'documentInfo',
+        },
+      },
+      { $unwind: '$documentInfo' },
+    ]);
 
     const updatePromises = pendingDocuments.map(async (tracking) => {
-      // Update status to 'verification'
-      const updatedTracking = {
-        ...tracking.toObject(),
-        status: 'verification',
-        updatedAt: new Date(),
-      };
-      await StatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+      const document = tracking.documentInfo;
 
-      // Record the status change in ApproveHistory
-      const approveHistory = new ApproveHistory({
+      if (!document?.notarizationService?.required_documents) {
+        console.log(`Document ${tracking._id} lacks notarization requirements`);
+        return null;
+      }
+
+      const requiredDocs = document.notarizationService.required_documents;
+      const existingFileNames = document.files.map((file) => file.filename);
+
+      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
+
+      const newStatus = missingDocs.length === 0 ? 'processing' : 'rejected';
+
+      await StatusTracking.updateOne(
+        { _id: tracking._id },
+        {
+          $set: {
+            status: newStatus,
+            updatedAt: new Date(),
+            feedback: missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined,
+          },
+        }
+      );
+
+      emailService.sendDocumentStatusUpdateEmail(
+        document.requesterInfo.email,
+        document._id,
+        'pending',
+        newStatus,
+        missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined
+      );
+
+      await new ApproveHistory({
         userId: null,
-        documentId: tracking.documentId,
+        documentId: document._id,
         beforeStatus: 'pending',
-        afterStatus: 'verification',
-        updatedAt: new Date(),
-      });
-      await approveHistory.save();
+        afterStatus: newStatus,
+        createdDate: new Date(),
+      }).save();
+
+      return {
+        documentId: document._id,
+        status: newStatus,
+        missingDocs: missingDocs.length > 0 ? missingDocs : null,
+      };
     });
 
-    console.log(`Auto-forwarded ${updatePromises.length} documents from 'pending' to 'verification' status`);
+    const results = (await Promise.all(updatePromises)).filter(Boolean);
 
-    await Promise.all(updatePromises);
+    console.log(`Auto-verification completed: ${results.length} documents processed`);
+    return results;
   } catch (error) {
-    console.error('Error auto-forwarding documents:', error.message);
+    console.error('Auto-verification error:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Document auto-verification failed');
   }
 };
 
@@ -606,5 +726,5 @@ module.exports = {
   approveSignatureByUser,
   approveSignatureByNotary,
   getHistoryWithStatus,
-  autoForwardPendingToVerification,
+  autoVerifyDocument,
 };

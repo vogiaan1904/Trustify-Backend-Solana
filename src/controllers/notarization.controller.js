@@ -40,7 +40,6 @@ const getHistoryWithStatus = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(history);
 });
 
-// Controller function to get document status by document ID
 const getDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
 
@@ -57,14 +56,20 @@ const getDocumentStatus = catchAsync(async (req, res) => {
 });
 
 const getDocumentByRole = catchAsync(async (req, res) => {
-  const { user } = req;
-  const documents = await notarizationService.getDocumentByRole(user.role);
-  res.status(httpStatus.OK).send(documents);
+  const filter = pick(req.query, ['status']);
+  const options = pick(req.query, ['limit', 'page']);
+
+  const result = await notarizationService.getDocumentByRole({
+    ...filter,
+    ...options,
+  });
+
+  res.status(httpStatus.OK).send(result);
 });
 
 const forwardDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
-  const { action, feedback } = req.body; // 'feedback' is now optional based on action
+  const { action, feedback } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
   const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedback);
