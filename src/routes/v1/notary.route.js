@@ -148,7 +148,7 @@ module.exports = router;
  * /notary/metrics/digitalSignature:
  *   get:
  *     summary: Get total combined session and document counts for "digitalSignature" status
- *     description: Retrieve the total combined counts of sessions and documents (from the beginning until now) with "digitalSignature" status, and the percentage change between the current month and the previous month. Accessible only to notary.
+ *     description: Retrieve the total combined counts of sessions and documents (from the beginning until now) with "digitalSignature" status, and the amount change between today and yesterday. Accessible only to notary.
  *     tags: [Notary]
  *     security:
  *       - bearerAuth: []
@@ -166,8 +166,8 @@ module.exports = router;
  *                   example: 1200
  *                 change:
  *                   type: number
- *                   description: Growth percentage of the total sessions and documents between the current month and previous month
- *                   example: 11.11
+ *                   description: Growth percentage of the total sessions and documents between today and yesterday
+ *                   example: 11
  *       "401":
  *         description: Unauthorized access
  *         content:
@@ -250,7 +250,7 @@ module.exports = router;
  * /notary/metrics/acceptanceRate:
  *   get:
  *     summary: Get total approved sessions and documents for notary
- *     description: Retrieve the total count of approved sessions and documents for the notary, including the growth percentage between the current month and the previous month. This endpoint is accessible only to notary users.
+ *     description: Retrieve the acceptance rate of approved sessions and documents for the notary, including the percentage between the current week and the previous week. Accessible only to notary.
  *     tags: [Notary]
  *     security:
  *       - bearerAuth: []
@@ -262,13 +262,13 @@ module.exports = router;
  *             schema:
  *               type: object
  *               properties:
- *                 total:
+ *                 acceptanceRate:
  *                   type: integer
- *                   description: Total count of approved sessions and documents from the beginning until now
- *                   example: 1500
+ *                   description: Acceptance rate of approved sessions and documents
+ *                   example: 97
  *                 growthPercent:
  *                   type: number
- *                   description: Growth percentage of approved sessions and documents between the current and previous months
+ *                   description: Percentage of approved sessions and documents between the current and previous week
  *                   example: 25.50
  *       "401":
  *         description: Unauthorized access
