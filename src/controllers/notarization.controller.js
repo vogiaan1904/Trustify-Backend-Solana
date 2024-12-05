@@ -101,6 +101,11 @@ const approveSignatureByNotary = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(requestApproved);
 });
 
+const getDocumentById = catchAsync(async (req, res) => {
+  const document = await notarizationService.getDocumentById(req.params.documentId);
+  res.status(httpStatus.OK).send(document);
+});
+
 module.exports = {
   createDocument,
   getHistory,
@@ -113,4 +118,5 @@ module.exports = {
   approveSignatureByUser,
   approveSignatureByNotary,
   getHistoryWithStatus,
+  getDocumentById,
 };

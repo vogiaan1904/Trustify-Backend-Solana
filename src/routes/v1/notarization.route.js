@@ -49,6 +49,10 @@ router.route('/upload-files').post(
 );
 
 router
+  .route('/document/:documentId')
+  .get(auth('getDocument'), validate(notarizationValidation.getDocument), notarizationController.getDocumentById);
+
+router
   .route('/history')
   .get(auth('viewNotarizationHistory'), validate(notarizationValidation.getHistory), notarizationController.getHistory);
 
@@ -714,6 +718,38 @@ router
  *         $ref: '#/components/responses/Unauthorized'
  *       "403":
  *         $ref: '#/components/responses/Forbidden'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /notarization/document/{documentId}:
+ *   get:
+ *     summary: Get notarization document by ID
+ *     tags: [Notarizations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: documentId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the document to retrieve
+ *     responses:
+ *       "200":
+ *         description: Notarization document retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Notarizations'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
  *       "500":
  *         $ref: '#/components/responses/InternalServerError'
  */
