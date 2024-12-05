@@ -16,6 +16,7 @@ const allRoles = {
     'uploadSessionDocument',
     'sendSessionForNotarization',
     'getSessionStatus',
+    'getDocument',
   ],
   admin: [
     'getUsers',
@@ -47,6 +48,7 @@ const allRoles = {
     'getPaymentTotalByNotarizationField',
     'getSessionStatus',
     'viewNotarizationHistoryByUserId',
+    'getDocument',
   ],
   notary: [
     'getDocumentsByRole',
@@ -59,6 +61,7 @@ const allRoles = {
     'forwardSessionStatus',
     'approveSignatureByNotary',
     'approveSignatureSessionNotary',
+    'getDocument',
   ],
 };
 
