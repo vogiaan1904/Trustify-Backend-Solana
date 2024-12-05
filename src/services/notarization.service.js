@@ -245,7 +245,10 @@ const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
           .limit(limit)
           .populate('documentId'); // Added populate to get document details
 
-        return documents;
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'processing',
+        }));
       },
       readyToSign: async () => {
         const documents = await RequestSignature.find({
@@ -257,7 +260,10 @@ const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
           .limit(limit)
           .sort({ createdAt: -1 });
 
-        return documents;
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'readyToSign',
+        }));
       },
       pendingSignature: async () => {
         const documents = await RequestSignature.find({
@@ -268,13 +274,19 @@ const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
           .limit(limit)
           .sort({ createdAt: -1 });
 
-        return documents;
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'pendingSignature',
+        }));
       },
       // Handle the case where no status is provided
       default: async () => {
         // Implement logic to fetch all documents (or return an error)
         const documents = await Document.find().skip(skipDocuments).limit(limit);
-        return documents;
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'default',
+        }));
       },
     };
 
@@ -413,13 +425,52 @@ const forwardDocumentStatus = async (documentId, action, role, userId, feedback)
 
 const getApproveHistory = async (userId) => {
   try {
-    const history = await ApproveHistory.find({ userId });
+    const history = await ApproveHistory.aggregate([
+      {
+        $match: { userId: new mongoose.Types.ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: 'documents',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'document',
+        },
+      },
+      {
+        $unwind: '$document',
+      },
+      {
+        $project: {
+          _id: 1,
+          documentId: 1,
+          createdDate: 1,
+          beforeStatus: 1,
+          afterStatus: 1,
+          'document.notarizationField.name': 1,
+          'document.notarizationService.name': 1,
+          'document.requesterInfo.fullName': 1,
+        },
+      },
+      {
+        $sort: { createdDate: -1 },
+      },
+    ]);
 
     if (history.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'No approval history found for this user.');
     }
 
-    return history;
+    return history.map((record) => ({
+      _id: record._id,
+      documentId: record.documentId,
+      createdDate: record.createdDate,
+      beforeStatus: record.beforeStatus,
+      afterStatus: record.afterStatus,
+      notarizationFieldName: record.document.notarizationField.name,
+      notarizationServiceName: record.document.notarizationService.name,
+      requesterName: record.document.requesterInfo.fullName,
+    }));
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -713,6 +764,62 @@ const autoVerifyDocument = async () => {
   }
 };
 
+const getDocumentById = async (documentId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
+
+    const document = await Document.aggregate([
+      {
+        $match: { _id: new mongoose.Types.ObjectId(documentId) },
+      },
+      {
+        $lookup: {
+          from: 'statustrackings',
+          let: { documentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$documentId', '$$documentId'] },
+              },
+            },
+            { $sort: { updatedAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: 'status',
+        },
+      },
+      {
+        $lookup: {
+          from: 'requestsignature',
+          localField: '_id',
+          foreignField: 'documentId',
+          as: 'signature',
+        },
+      },
+      {
+        $addFields: {
+          status: { $arrayElemAt: ['$status', 0] },
+          signature: { $arrayElemAt: ['$signature', 0] },
+        },
+      },
+    ]);
+
+    if (!document || document.length === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Document not found');
+    }
+
+    return document[0];
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error fetching document:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to fetch document');
+  }
+};
+
 module.exports = {
   uploadFileToFirebase,
   createDocument,
@@ -727,4 +834,5 @@ module.exports = {
   approveSignatureByNotary,
   getHistoryWithStatus,
   autoVerifyDocument,
+  getDocumentById,
 };

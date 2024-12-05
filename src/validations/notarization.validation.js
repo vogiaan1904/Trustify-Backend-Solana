@@ -89,6 +89,11 @@ const getDocumentByRole = {
   }),
 };
 
+const getDocument = {
+  params: Joi.object().keys({
+    documentId: Joi.string().custom(objectId).required(),
+  }),
+};
 module.exports = {
   createDocument,
   getHistory,
@@ -98,4 +103,5 @@ module.exports = {
   getHistoryByUserId,
   getHistoryWithStatus,
   getDocumentByRole,
+  getDocument,
 };
