@@ -66,7 +66,7 @@ This repository contains the backend code for **CongChungOnline**, a platform fo
 4. Start the server:
 
    ```bash
-   npm start
+   yarn start
    ```
 
 ## Environment Variables
@@ -138,13 +138,13 @@ The API documentation can be accessed at `/api-docs`. You can view the list of a
 Run tests with:
 
 ```bash
-npm test
+yarn test
 ```
 
 For coverage reports:
 
 ```bash
-npm run coverage
+yarn test:coverage
 ```
 
 ## Docker
@@ -153,10 +153,9 @@ If you want to run the application using Docker, you can use the following comma
 
 ```bash
 # Run the Docker container in development mode
-npm run docker:dev
-
+yarn docker:dev
 # Run the Docker container in production mode
-npm run docker:prod
+yarn docker:prod
 ```
 
 ## License
