@@ -4,13 +4,13 @@ const { notaryController } = require('../../controllers');
 
 const router = express.Router();
 
-router.get('/metrics/processing', auth('dashboard'), notaryController.getProcessingSessionsDocuments);
+router.get('/metrics/processing', auth('notaryDashboard'), notaryController.getProcessingSessionsDocuments);
 
-router.get('/metrics/digitalSignature', auth('dashboard'), notaryController.getSignatureSessionsDocuments);
+router.get('/metrics/digitalSignature', auth('notaryDashboard'), notaryController.getSignatureSessionsDocuments);
 
-router.get('/metrics/notaryApprovals', auth('dashboard'), notaryController.getNotaryApproved);
+router.get('/metrics/notaryApprovals', auth('notaryDashboard'), notaryController.getNotaryApproved);
 
-router.get('/metrics/acceptanceRate', auth('dashboard'), notaryController.getAcceptanceRate);
+router.get('/metrics/acceptanceRate', auth('notaryDashboard'), notaryController.getAcceptanceRate);
 
 module.exports = router;
 
@@ -98,7 +98,7 @@ module.exports = router;
  *   get:
  *     summary: Get total combined session and document counts for "processing" status
  *     description: Retrieve the total combined counts of sessions and documents (from the beginning until now) with "processing" status, and the percentage change between the current month and the previous month. Accessible only to notary.
- *     tags: [Notary]
+ *     tags: [Notary Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -149,7 +149,7 @@ module.exports = router;
  *   get:
  *     summary: Get total combined session and document counts for "digitalSignature" status
  *     description: Retrieve the total combined counts of sessions and documents (from the beginning until now) with "digitalSignature" status, and the amount change between today and yesterday. Accessible only to notary.
- *     tags: [Notary]
+ *     tags: [Notary Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -200,7 +200,7 @@ module.exports = router;
  *   get:
  *     summary: Get total approved sessions and documents for notary
  *     description: Retrieve the total count of approved sessions and documents for the notary, including growth percentage between the current month and the previous month. Accessible only to notary users.
- *     tags: [Notary]
+ *     tags: [Notary Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -251,7 +251,7 @@ module.exports = router;
  *   get:
  *     summary: Get total approved sessions and documents for notary
  *     description: Retrieve the acceptance rate of approved sessions and documents for the notary, including the percentage between the current week and the previous week. Accessible only to notary.
- *     tags: [Notary]
+ *     tags: [Notary Dashboard]
  *     security:
  *       - bearerAuth: []
  *     responses:

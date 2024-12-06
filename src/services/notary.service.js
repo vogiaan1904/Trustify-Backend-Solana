@@ -4,7 +4,10 @@ const ApiError = require('../utils/ApiError');
 
 const getDateRanges = (unit, subtractValue) => {
   const now = new Date();
-  let start, end, previousStart, previousEnd;
+  let start;
+  let end;
+  let previousStart;
+  let previousEnd;
 
   if (unit === 'day') {
     const today = new Date(now);
@@ -56,7 +59,7 @@ const getDateRanges = (unit, subtractValue) => {
   };
 };
 
-const getSignatureSessionsDocuments = async (req, res) => {
+const getSignatureSessionsDocuments = async () => {
   try {
     const status = 'digitalSignature';
     const { crtStart, crtEnd, prsStart, prsEnd } = getDateRanges('day', 0);
@@ -92,7 +95,7 @@ const getSignatureSessionsDocuments = async (req, res) => {
   }
 };
 
-const getProcessingSessionsDocuments = async (req, res) => {
+const getProcessingSessionsDocuments = async () => {
   try {
     const status = 'processing';
     const { crtStart, crtEnd, prsStart, prsEnd } = getDateRanges('month', 0);
@@ -108,6 +111,7 @@ const getProcessingSessionsDocuments = async (req, res) => {
     const currentTotal = crtSessions + crtDocuments;
     const previousTotal = prsSessions + prsDocuments;
     const growthPercent =
+      // eslint-disable-next-line no-nested-ternary
       previousTotal === 0 && currentTotal === 0
         ? 0
         : previousTotal === 0
@@ -148,6 +152,7 @@ const getNotaryApproved = async (id) => {
     const currentTotal = crtApprovedSessions + crtApprovedDocuments;
     const previousTotal = prsApprovedSessions + prsApprovedDocuments;
     const growthPercent =
+      // eslint-disable-next-line no-nested-ternary
       previousTotal === 0 && currentTotal === 0
         ? 0
         : previousTotal === 0
@@ -166,7 +171,7 @@ const getNotaryApproved = async (id) => {
   }
 };
 
-const getAcceptanceRate = async (req, res) => {
+const getAcceptanceRate = async () => {
   try {
     const afterStatus = 'rejected';
     const { crtStart, crtEnd, prsStart, prsEnd } = getDateRanges('week', 0);
