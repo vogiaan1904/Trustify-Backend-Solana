@@ -61,6 +61,7 @@ const allRoles = {
     'forwardSessionStatus',
     'approveSignatureByNotary',
     'approveSignatureSessionNotary',
+    'notaryDashboard',
     'getDocument',
   ],
 };
