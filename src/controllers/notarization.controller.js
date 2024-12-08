@@ -3,23 +3,9 @@ const mongoose = require('mongoose');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const pick = require('../utils/pick');
-const { notarizationService, emailService } = require('../services');
+const { notarizationService } = require('../services');
 
-// Utility function to validate email format
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-// Helper function to handle email sending logic
-const sendDocumentCreationEmail = async (email, documentId) => {
-  const subject = 'Tài liệu đã được tạo';
-  const message = `Tài liệu của bạn với ID: ${documentId} đã được tạo thành công.`;
-
-  try {
-    await emailService.sendEmail(email, subject, message);
-  } catch (error) {
-    console.error('Error sending email:', error);
-    throw new Error('Failed to send email notification.');
-  }
-};
 
 // Controller function to create a document
 const createDocument = catchAsync(async (req, res) => {
@@ -33,31 +19,27 @@ const createDocument = catchAsync(async (req, res) => {
 
   await notarizationService.createStatusTracking(document._id, 'pending');
 
-  try {
-    await sendDocumentCreationEmail(req.body.requesterInfo.email, document._id);
-  } catch (error) {
-    return res.status(httpStatus.INTERNAL_SERVER_ERROR).send({
-      message: 'Document created, but failed to send email notification.',
-    });
-  }
-
   res.status(httpStatus.CREATED).send(document);
 });
 
-// Controller function to get history by user ID
-const getHistoryByUserId = catchAsync(async (req, res) => {
+const getHistory = catchAsync(async (req, res) => {
   const userId = req.user.id;
   const history = await notarizationService.getHistoryByUserId(userId);
   res.status(httpStatus.OK).send(history);
 });
 
+const getHistoryByUserId = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const history = await notarizationService.getHistoryByUserId(userId);
+  res.status(httpStatus.OK).send(history);
+});
+
 const getHistoryWithStatus = catchAsync(async (req, res) => {
-  const { userId } = req.query;
+  const userId = req.user.id;
   const history = await notarizationService.getHistoryWithStatus(userId);
   res.status(httpStatus.OK).send(history);
 });
 
-// Controller function to get document status by document ID
 const getDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
 
@@ -74,17 +56,23 @@ const getDocumentStatus = catchAsync(async (req, res) => {
 });
 
 const getDocumentByRole = catchAsync(async (req, res) => {
-  const { user } = req;
-  const documents = await notarizationService.getDocumentByRole(user.role);
-  res.status(httpStatus.OK).send(documents);
+  const filter = pick(req.query, ['status']);
+  const options = pick(req.query, ['limit', 'page']);
+
+  const result = await notarizationService.getDocumentByRole({
+    ...filter,
+    ...options,
+  });
+
+  res.status(httpStatus.OK).send(result);
 });
 
 const forwardDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
-  const { action } = req.body;
+  const { action, feedback } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId);
+  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedback);
   res.status(httpStatus.OK).send(updatedStatus);
 });
 
@@ -95,25 +83,32 @@ const getApproveHistory = catchAsync(async (req, res) => {
 });
 
 const getAllNotarizations = catchAsync(async (req, res) => {
+  const filter = {};
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
-  const notarizations = await notarizationService.getAllNotarizations({}, options);
-  res.send(notarizations);
+  const notarizations = await notarizationService.getAllNotarizations(filter, options);
+  res.status(httpStatus.OK).send(notarizations);
 });
 
 const approveSignatureByUser = catchAsync(async (req, res) => {
-  const { documentId, amount } = req.body;
+  const { documentId } = req.body;
   const signatureImage = req.file.originalname;
-  const requestApproved = await notarizationService.approveSignatureByUser(documentId, amount, signatureImage);
+  const requestApproved = await notarizationService.approveSignatureByUser(documentId, signatureImage);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 
-const approveSignatureBySecretary = catchAsync(async (req, res) => {
-  const requestApproved = await notarizationService.approveSignatureBySecretary(req.body.documentId, req.user.id);
+const approveSignatureByNotary = catchAsync(async (req, res) => {
+  const requestApproved = await notarizationService.approveSignatureByNotary(req.body.documentId, req.user.id);
   res.status(httpStatus.OK).send(requestApproved);
+});
+
+const getDocumentById = catchAsync(async (req, res) => {
+  const document = await notarizationService.getDocumentById(req.params.documentId);
+  res.status(httpStatus.OK).send(document);
 });
 
 module.exports = {
   createDocument,
+  getHistory,
   getHistoryByUserId,
   getDocumentStatus,
   getDocumentByRole,
@@ -121,6 +116,7 @@ module.exports = {
   getApproveHistory,
   getAllNotarizations,
   approveSignatureByUser,
-  approveSignatureBySecretary,
+  approveSignatureByNotary,
   getHistoryWithStatus,
+  getDocumentById,
 };

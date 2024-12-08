@@ -211,10 +211,32 @@ module.exports = router;
  *                 format: password
  *                 minLength: 8
  *                 description: At least one number and one letter
+ *               citizenId:
+ *                 type: string
+ *               phoneNumber:
+ *                 type: string
+ *               address:
+ *                 type: object
+ *                 properties:
+ *                    province:
+ *                      type: string
+ *                    district:
+ *                      type: string
+ *                    town:
+ *                      type: string
+ *                    street:
+ *                      type: string
  *             example:
  *               name: fake name
  *               email: fake@example.com
  *               password: password1
+ *               citizenId: '0123456789'
+ *               phoneNumber: '0998877665'
+ *               address:
+ *                 province: 'Province Z'
+ *                 district: 'District Y'
+ *                 town: 'Town X'
+ *                 street: '12 Street A'
  *     responses:
  *       "200":
  *         description: OK

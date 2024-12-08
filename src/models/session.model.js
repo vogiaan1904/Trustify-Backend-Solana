@@ -46,6 +46,31 @@ const sessionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
+  files: {
+    type: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        filename: {
+          type: String,
+          required: false,
+          trim: true,
+        },
+        firebaseUrl: {
+          type: String,
+          required: false,
+          trim: true,
+        },
+        createAt: {
+          type: Date,
+          required: false,
+        },
+      },
+    ],
+    required: false,
+  },
 });
 
 sessionSchema.plugin(toJSON);

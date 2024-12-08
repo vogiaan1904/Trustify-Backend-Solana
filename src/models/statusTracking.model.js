@@ -14,6 +14,10 @@ const StatusTrackingSchema = new mongoose.Schema({
     type: Date,
     required: true,
   },
+  feedback: {
+    type: String,
+    required: false,
+  },
 });
 
 module.exports = mongoose.model('StatusTracking', StatusTrackingSchema);

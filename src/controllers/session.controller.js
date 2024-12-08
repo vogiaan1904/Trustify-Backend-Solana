@@ -1,5 +1,6 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
+const pick = require('../utils/pick');
 const { sessionService, emailService } = require('../services');
 const { addUserToSession: addUserToSessionValidation } = require('../validations/session.validation');
 
@@ -41,7 +42,7 @@ const addUserToSession = catchAsync(async (req, res) => {
 
 const deleteUserOutOfSession = catchAsync(async (req, res) => {
   const { sessionId } = req.params;
-  const { email } = req.body; // Changed to receive a single email
+  const { email } = req.body;
   const userId = req.user.id;
   const updatedSession = await sessionService.deleteUserOutOfSession(sessionId, email, userId); // Pass single email
   res.status(httpStatus.OK).send(updatedSession);
@@ -57,7 +58,8 @@ const joinSession = catchAsync(async (req, res) => {
 });
 
 const getAllSessions = catchAsync(async (req, res) => {
-  const getSessions = await sessionService.getAllSessions();
+  const options = pick(req.query, ['sortBy', 'limit', 'page']);
+  const getSessions = await sessionService.getAllSessions({}, options);
   res.status(httpStatus.OK).send(getSessions);
 });
 
@@ -78,6 +80,66 @@ const getActiveSessions = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(sessions);
 });
 
+const getSessionsByUserId = catchAsync(async (req, res) => {
+  const userId = req.user.id;
+  const sessions = await sessionService.getSessionsByUserId(userId);
+  res.status(httpStatus.OK).send(sessions);
+});
+
+const getSessionBySessionId = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+  const sessions = await sessionService.getSessionBySessionId(sessionId, userId);
+  res.status(httpStatus.OK).send(sessions);
+});
+
+const uploadSessionDocument = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+  const uploadedSessionDocument = await sessionService.uploadSessionDocument(sessionId, userId, req.files);
+  res.status(httpStatus.OK).send(uploadedSessionDocument);
+});
+
+const sendSessionForNotarization = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const userId = req.user.id;
+  const session = await sessionService.sendSessionForNotarization(sessionId, userId);
+  res.status(httpStatus.OK).send(session);
+});
+
+const getSessionStatus = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const sessionStatusTracking = await sessionService.getSessionStatus(sessionId);
+  res.status(httpStatus.OK).send(sessionStatusTracking);
+});
+
+const getSessionByRole = catchAsync(async (req, res) => {
+  const { user } = req;
+  const sessions = await sessionService.getSessionByRole(user.role);
+  res.status(httpStatus.OK).send(sessions);
+});
+
+const forwardSessionStatus = catchAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  const { action, feedBack } = req.body;
+  const { role } = req.user;
+  const userId = req.user.id;
+  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack);
+  res.status(httpStatus.OK).send(updatedStatus);
+});
+
+const approveSignatureSessionByUser = catchAsync(async (req, res) => {
+  const { sessionId, amount } = req.body;
+  const signatureImage = req.file.originalname;
+  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, amount, signatureImage);
+  res.status(httpStatus.CREATED).send(requestApproved);
+});
+
+const approveSignatureSessionBySecretary = catchAsync(async (req, res) => {
+  const requestApproved = await sessionService.approveSignatureSessionBySecretary(req.body.sessionId, req.user.id);
+  res.status(httpStatus.OK).send(requestApproved);
+});
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -87,4 +149,13 @@ module.exports = {
   getSessionsByDate,
   getSessionsByMonth,
   getActiveSessions,
+  getSessionsByUserId,
+  getSessionBySessionId,
+  uploadSessionDocument,
+  sendSessionForNotarization,
+  getSessionStatus,
+  getSessionByRole,
+  forwardSessionStatus,
+  approveSignatureSessionByUser,
+  approveSignatureSessionBySecretary,
 };

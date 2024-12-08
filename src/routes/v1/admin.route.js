@@ -5,23 +5,13 @@ const { adminController } = require('../../controllers');
 const router = express.Router();
 
 // Document metrics
-router.get('/documents/today', auth('getToDayDocumentCount'), adminController.getToDayDocumentCount);
+router.get('/documents/:period', auth('getDocumentCount'), adminController.getDocumentCount);
 
-router.get('/users/today', auth('getToDayUserCount'), adminController.getToDayUserCount);
+// User metrics
+router.get('/users/:period', auth('getUserCount'), adminController.getUserCount);
 
-router.get('/users/monthly', auth('getUserMonthly'), adminController.getUserMonthly);
-
-router.get(
-  '/documents/fields/daily',
-  auth('getTodayDocumentsByNotaryField'),
-  adminController.getTodayDocumentsByNotaryField
-);
-
-router.get(
-  '/documents/fields/monthly',
-  auth('getMonthDocumentsByNotaryField'),
-  adminController.getMonthDocumentsByNotaryField
-);
+// Document metrics by notary field
+router.get('/documents/fields/:period', auth('getDocumentsByNotaryField'), adminController.getDocumentsByNotaryField);
 
 // Employee metrics
 router.get('/employees/count', auth('getEmployeeCount'), adminController.getEmployeeCount);
@@ -29,14 +19,18 @@ router.get('/employees/count', auth('getEmployeeCount'), adminController.getEmpl
 router.get('/employees/list', auth('getEmployeeList'), adminController.getEmployeeList);
 
 // Session metrics
-router.get('/sessions/daily', auth('getDailySessionCount'), adminController.getDailySessionCount);
-
-router.get('/sessions/monthly', auth('getMonthlySessionCount'), adminController.getMonthlySessionCount);
+router.get('/sessions/:period', auth('getSessionCount'), adminController.getSessionCount);
 
 // Payment metrics
-router.get('/payments/daily', auth('getDailyPaymentTotal'), adminController.getDailyPaymentTotal);
+router.get('/payments/:period', auth('getPaymentTotal'), adminController.getPaymentTotal);
 
-router.get('/payments/monthly', auth('getMonthlyPaymentTotal'), adminController.getMonthlyPaymentTotal);
+router.get('/payments/:period/service', auth('getPaymentTotalByService'), adminController.getPaymentTotalByService);
+
+router.get(
+  '/payments/:period/field',
+  auth('getPaymentTotalByNotarizationField'),
+  adminController.getPaymentTotalByNotarizationField
+);
 
 module.exports = router;
 
@@ -49,13 +43,92 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/documents/today:
+ * components:
+ *   responses:
+ *     BadRequest:
+ *       description: Bad request due to invalid or missing query parameters
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Invalid request parameters
+ *               error:
+ *                 type: string
+ *                 example: BadRequest
+ *     Unauthorized:
+ *       description: Unauthorized access - invalid or missing token
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Unauthorized
+ *               error:
+ *                 type: string
+ *                 example: Unauthorized
+ *     Forbidden:
+ *       description: Forbidden - user does not have permission to access this resource
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Forbidden access
+ *               error:
+ *                 type: string
+ *                 example: Forbidden
+ *     NotFound:
+ *       description: Resource not found
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: Resource not found
+ *               error:
+ *                 type: string
+ *                 example: NotFound
+ *     InternalServerError:
+ *       description: Internal server error
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: An unexpected error occurred
+ *               error:
+ *                 type: string
+ *                 example: InternalServerError
+ */
+
+/**
+ * @swagger
+ * /admin/metrics/documents/{period}:
  *   get:
- *     summary: Get today's document count and percent document growth
- *     description: Only admins can retrieve today's document count and growth percentage.
+ *     summary: Get document count and percent document growth for a specified period
+ *     description: Only admins can retrieve document count and growth percentage for the specified period.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to retrieve document count and growth percentage for
  *     responses:
  *       "200":
  *         description: Successful operation
@@ -64,14 +137,34 @@ module.exports = router;
  *             schema:
  *               type: object
  *               properties:
- *                 documentCount:
- *                   type: integer
- *                   description: The number of documents created today
- *                   example: 20
- *                 percentGrowth:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "today"
+ *                     documentCount:
+ *                       type: integer
+ *                       example: 20
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_today"
+ *                     documentCount:
+ *                       type: integer
+ *                       example: 15
+ *                 growthPercent:
  *                   type: number
- *                   description: The percentage growth of documents from previous day
- *                   example: 15.5
+ *                   example: 33.33
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -90,13 +183,21 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/users/today:
+ * /admin/metrics/users/{period}:
  *   get:
- *     summary: Get today's user count and percent user growth
- *     description: Only admins can retrieve today's user count and growth percentage.
+ *     summary: Get user count and growth percent for a specified period
+ *     description: Retrieve user count and growth percentage based on the specified period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to retrieve user metrics for
  *     responses:
  *       "200":
  *         description: Successful operation
@@ -105,14 +206,34 @@ module.exports = router;
  *             schema:
  *               type: object
  *               properties:
- *                 userCount:
- *                   type: integer
- *                   description: The number of users created today
- *                   example: 20
- *                 percentGrowth:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "daily"
+ *                     userCount:
+ *                       type: integer
+ *                       example: 25
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_daily"
+ *                     userCount:
+ *                       type: integer
+ *                       example: 20
+ *                 growthPercent:
  *                   type: number
- *                   description: The percentage growth of users from previous day
- *                   example: 15.5
+ *                   example: 25
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -131,13 +252,21 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/documents/fields/daily:
+ * /admin/metrics/documents/fields/{period}:
  *   get:
- *     summary: Get today's document count by notary field
- *     description: Retrieve the number of documents created today, grouped by notary fields. Only admins can access this information.
+ *     summary: Get document count by notary field for a specified period
+ *     description: Retrieve the number of documents created for a given period, grouped by notary fields. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to filter documents by
  *     responses:
  *       "200":
  *         description: Successful operation
@@ -146,19 +275,47 @@ module.exports = router;
  *             schema:
  *               type: object
  *               properties:
- *                 todayDocumentsByNotaryField:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                         description: The name of the notary field
- *                         example: "Example Notary Field"
- *                       count:
- *                         type: integer
- *                         description: The number of documents created today for this notary field
- *                         example: 1
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           fieldName:
+ *                             type: string
+ *                             example: "Example Notary Field"
+ *                           count:
+ *                             type: integer
+ *                             example: 5
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           fieldName:
+ *                             type: string
+ *                             example: "Example Notary Field"
+ *                           count:
+ *                             type: integer
+ *                             example: 3
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -216,56 +373,120 @@ module.exports = router;
  * @swagger
  * /admin/metrics/employees/list:
  *   get:
- *     summary: Get the list of employees with role 'notary' and 'secretary'
- *     description: Retrieve a list of employees with the role of 'notary' and 'secretary'.
+ *     summary: Get a paginated list of employees with role 'notary' and 'secretary'
+ *     description: Retrieve a list of employees with the role of 'notary' and 'secretary', including pagination and sorting options.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: Field to sort by in the form of `field:asc` or `field:desc` (e.g., `name:asc`, `email:desc`)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 10
+ *         description: Maximum number of employees per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
  *     responses:
  *       "200":
- *         description: Successful operation
+ *         description: Successful retrieval of employee list
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 limit:
+ *                   type: integer
+ *                   example: 10
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 5
+ *                 totalResults:
+ *                   type: integer
+ *                   example: 50
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
  *       "401":
- *         description: Unauthorized access - invalid token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/responses/Unauthorized'
+ *         $ref: '#/components/responses/Unauthorized'
  *       "403":
- *         description: Forbidden - the user doesn't have access
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/responses/Forbidden'
+ *         $ref: '#/components/responses/Forbidden'
  *       "404":
- *         description: Not found - endpoint does not exist
+ *         $ref: '#/components/responses/NotFound'
  *       "500":
- *         description: Internal server error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 
 /**
  * @swagger
- * /admin/metrics/sessions/daily:
+ * /admin/metrics/sessions/{period}:
  *   get:
- *     summary: Get today's session count
- *     description: Retrieve the number of sessions created today. Only admins can access this information.
+ *     summary: Get session count and growth percent for a specified period
+ *     description: Retrieve session count and growth percentage based on the specified period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to retrieve session metrics for
  *     responses:
  *       "200":
  *         description: Successful operation
  *         content:
  *           application/json:
  *             schema:
- *               type: integer
- *               description: The number of sessions created today
- *               example: 1
+ *               type: object
+ *               properties:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "daily"
+ *                     sessionCount:
+ *                       type: integer
+ *                       example: 15
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_daily"
+ *                     sessionCount:
+ *                       type: integer
+ *                       example: 10
+ *                 growthPercent:
+ *                   type: number
+ *                   example: 50
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -284,22 +505,56 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/sessions/monthly:
+ * /admin/metrics/payments/{period}:
  *   get:
- *     summary: Get month's session count
- *     description: Retrieve the number of sessions created this month. Only admins can access this information.
+ *     summary: Get total payment value and growth percent for a specified period
+ *     description: Retrieve the total value of payments and growth percentage based on the specified period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to retrieve payment metrics for
  *     responses:
  *       "200":
  *         description: Successful operation
  *         content:
  *           application/json:
  *             schema:
- *               type: integer
- *               description: The number of sessions created this month
- *               example: 1
+ *               type: object
+ *               properties:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "today"
+ *                     totalAmount:
+ *                       type: number
+ *                       example: 1000
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_today"
+ *                     totalAmount:
+ *                       type: number
+ *                       example: 800
+ *                 growthPercent:
+ *                   type: number
+ *                   example: 25
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -318,22 +573,64 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/payments/daily:
+ * /admin/metrics/payments/{period}/service:
  *   get:
- *     summary: Get today's total payment value
- *     description: Retrieve the total value of payments created today. Only admins can access this information.
+ *     summary: Get total payment value by service
+ *     description: Retrieve the total value of payments created by service for a given period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to filter payments by
  *     responses:
  *       "200":
  *         description: Successful operation
  *         content:
  *           application/json:
  *             schema:
- *               type: number
- *               description: The total value of payments created today
- *               example: 1000
+ *               type: object
+ *               properties:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           serviceName:
+ *                             type: string
+ *                             example: "Example Notarization Service"
+ *                           totalAmount:
+ *                             type: number
+ *                             example: 1000
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           serviceName:
+ *                             type: string
+ *                             example: "Example Notarization Service"
+ *                           totalAmount:
+ *                             type: number
+ *                             example: 900
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:
@@ -352,22 +649,64 @@ module.exports = router;
 
 /**
  * @swagger
- * /admin/metrics/payments/monthly:
+ * /admin/metrics/payments/{period}/field:
  *   get:
- *     summary: Get month's total payment value
- *     description: Retrieve the total value of payments created this month. Only admins can access this information.
+ *     summary: Get total payment value by notarization field
+ *     description: Retrieve the total value of payments created by notarization field for a given period. Only admins can access this information.
  *     tags: [Admins]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to filter payments by
  *     responses:
  *       "200":
  *         description: Successful operation
  *         content:
  *           application/json:
  *             schema:
- *               type: number
- *               description: The total value of payments created this month
- *               example: 10000
+ *               type: object
+ *               properties:
+ *                 currentPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       enum: [today, current_week, current_month, current_year]
+ *                       example: "daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           fieldName:
+ *                             type: string
+ *                             example: "Example Notarization Field"
+ *                           totalAmount:
+ *                             type: number
+ *                             example: 5000
+ *                 previousPeriod:
+ *                   type: object
+ *                   properties:
+ *                     period:
+ *                       type: string
+ *                       example: "previous_daily"
+ *                     totals:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           fieldName:
+ *                             type: string
+ *                             example: "Example Notarization Field"
+ *                           totalAmount:
+ *                             type: number
+ *                             example: 4500
  *       "401":
  *         description: Unauthorized access - invalid token
  *         content:

@@ -6,13 +6,15 @@ const router = express.Router();
 /**
  * @swagger
  * tags:
- *   name: Payment
- *   description: API endpoints for managing payments
+ *   name: Payments
+ *   description: Testing route for payment API
  */
 
 router.post('/create-payment', paymentController.createPayment);
 router.get('/get-payment/:paymentId', paymentController.getPayment);
 router.put('/update-payment-status/:paymentId', paymentController.updatePaymentStatus);
+router.get('/get-payment-status/:paymentId', paymentController.getPaymentStatus);
+router.get('/update-all-payments', paymentController.updateAllPayments);
 
 module.exports = router;
 
@@ -138,6 +140,55 @@ module.exports = router;
  *         description: Invalid status value
  *       404:
  *         description: Payment not found
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /payments/get-payment-status/{paymentId}:
+ *   get:
+ *     summary: Get the status of a payment
+ *     description: Get the status of a payment by its ID.
+ *     tags: [Payments]
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the payment to retrieve
+ *     responses:
+ *       200:
+ *         description: Payment status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Payment'
+ *       404:
+ *         description: Payment not found
+ *       500:
+ *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /payments/update-all-payments:
+ *   get:
+ *     summary: Update all payments
+ *     description: Update the status of all payments in the database
+ *     tags: [Payments]
+ *     responses:
+ *       200:
+ *         description: Payments updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Payments updated successfully"
  *       500:
  *         description: Internal server error
  */

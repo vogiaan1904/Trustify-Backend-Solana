@@ -12,6 +12,12 @@ This repository contains the backend code for **CongChungOnline**, a platform fo
 - **Blockchain & NFT Storage:** Document records are stored securely using blockchain technology and NFTs.
 - **Authentication:** Uses JWT-based authentication for secure access.
 - **Role-Based Access Control:** Provides different levels of access based on user roles (e.g., admin, customer, notary).
+- **Google OAuth:** Allows users to sign in using their Google accounts.
+- **Payment Gateway Integration:** Supports online payments for notarization services.
+- **Gemini API Integration:** Uses the Gemini API for generating AI-powered documents.
+- **VietQR Integration:** Generates QR codes for document verification.
+- **API Documentation:** Provides detailed documentation for all APIs using Swagger.
+- **Docker Support:** Allows the application to be run in a Docker container.
 
 ## Technologies
 
@@ -31,20 +37,22 @@ This repository contains the backend code for **CongChungOnline**, a platform fo
 - **Pre-commit Hooks:** Husky, Lint-staged
 - **Code Formatting:** ESLint, Prettier
 - **Version Control:** Git
+- **Containerization:** Docker
+- **Deployment:** Railway
 
 ## Installation
 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/ASE-UIT/congchungonline-be.git
-   cd congchungonline-be
+   git clone https://github.com/ASE-UIT/03.-Online-Notarization-Management-System-BE
+   cd 03.-Online-Notarization-Management-System-BE
    ```
 
 2. Install dependencies:
 
    ```bash
-   npm install
+   yarn
    ```
 
 3. Set up environment variables:
@@ -58,7 +66,7 @@ This repository contains the backend code for **CongChungOnline**, a platform fo
 4. Start the server:
 
    ```bash
-   npm start
+   yarn start
    ```
 
 ## Environment Variables
@@ -69,7 +77,7 @@ PORT=3000
 HOST=http://localhost
 
 # MongoDB URL
-MONGODB_URL=mongodb://127.0.0.1:27017/node-boilerplate
+MONGODB_URL=mongodb://127.0.0.1:27017/OnlineNotarization
 
 # JWT Authentication
 JWT_SECRET=thisisasamplesecret
@@ -105,6 +113,20 @@ FIREBASE_AUTH_URI=YOUR_FIREBASE_AUTH_URI
 FIREBASE_TOKEN_URI=YOUR_FIREBASE_TOKEN_URI
 FIREBASE_AUTH_PROVIDER_X509_CERT_URL=YOUR_FIREBASE_AUTH_PROVIDER_X509_CERT_URL
 FIREBASE_CLIENT_X509_CERT_URL=YOUR_FIREBASE_CLIENT_X509_CERT_URL
+
+# Client URL
+CLIENT_URL=YOUR_CLIENT_URL
+
+# Payment URL
+PAYOS_CLIENT_ID=YOUR_PAYOS_CLIENT_ID
+PAYOS_API_KEY=YOUR_PAYOS_API_KEY
+PAYOS_CHECKSUM_KEY=YOUR_PAYOS_CHECKSUM_KEY
+SERVER_URL=YOUR_SERVER_URL
+VIETQR_URL=YOUR_VIETQR_URL
+
+# Docker
+DOCKER_USERNAME=YOUR_DOCKER_USERNAME
+DOCKER_PASSWORD=YOUR_DOCKER_PASSWORD
 ```
 
 ## API Documentation
@@ -116,13 +138,13 @@ The API documentation can be accessed at `/api-docs`. You can view the list of a
 Run tests with:
 
 ```bash
-npm test
+yarn test
 ```
 
 For coverage reports:
 
 ```bash
-npm run coverage
+yarn test:coverage
 ```
 
 ## Docker
@@ -131,12 +153,11 @@ If you want to run the application using Docker, you can use the following comma
 
 ```bash
 # Run the Docker container in development mode
-npm run docker:dev
-
+yarn docker:dev
 # Run the Docker container in production mode
-npm run docker:prod
+yarn docker:prod
 ```
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

@@ -8,16 +8,11 @@ const requestSignatureSchema = new mongoose.Schema(
       ref: 'Document',
       required: true,
     },
-    amount: {
-      type: Number,
-      required: true,
-    },
     signatureImage: {
       type: String,
-      required: true,
     },
     approvalStatus: {
-      secretary: {
+      notary: {
         approved: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
       },

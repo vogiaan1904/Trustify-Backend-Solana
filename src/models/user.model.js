@@ -44,6 +44,48 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    citizenId: {
+      type: String,
+      trim: true,
+      required: false,
+    },
+    phoneNumber: {
+      type: String,
+      trim: true,
+      validate(value) {
+        if (!validator.isMobilePhone(value, 'any')) {
+          throw new Error('Invalid phone number');
+        }
+      },
+      required: false,
+    },
+    address: {
+      province: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      district: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      town: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+      street: {
+        type: String,
+        trim: true,
+        required: false,
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'suspended', 'deleted'],
+      default: 'active',
+    },
   },
   {
     timestamps: true,

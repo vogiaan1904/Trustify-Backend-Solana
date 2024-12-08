@@ -42,6 +42,18 @@ const paymentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  documentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Document',
+  },
+  serviceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'NotarizationService',
+  },
+  fieldId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'NotarizationField',
+  },
 });
 
 const Payment = mongoose.model('Payment', paymentSchema);

@@ -1,4 +1,7 @@
 const httpStatus = require('http-status');
+const mongoose = require('mongoose');
+const { ObjectId } = require('mongoose').Types;
+const emailService = require('./email.service');
 const { Document, StatusTracking, ApproveHistory, NotarizationService, NotarizationField } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { bucket } = require('../config/firebase');
@@ -13,13 +16,13 @@ const generateOrderCode = () => {
   return Math.floor(Math.random() * MAX_ORDER_CODE) + 1;
 };
 
-const uploadFileToFirebase = async (file, folderName) => {
+const uploadFileToFirebase = async (file, rootFolder, folderName) => {
   const fileName = `${Date.now()}-${file.originalname}`;
-  const fileRef = bucket.file(`${folderName}/${fileName}`);
+  const fileRef = bucket.file(`${rootFolder}/${folderName}/${fileName}`);
 
   try {
     await fileRef.save(file.buffer, { contentType: file.mimetype });
-    return `https://storage.googleapis.com/${bucket.name}/${folderName}/${fileName}`;
+    return `https://storage.googleapis.com/${bucket.name}/${rootFolder}/${folderName}/${fileName}`;
   } catch (error) {
     console.error('Error uploading file:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload file');
@@ -32,7 +35,7 @@ const createDocument = async (documentBody, files, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
     }
 
-    const { notarizationField, notarizationService, requesterInfo } = documentBody;
+    const { notarizationField, notarizationService, requesterInfo, amount } = documentBody;
 
     const notarizationFieldDoc = await NotarizationField.findById(notarizationField.id);
     if (!notarizationFieldDoc) {
@@ -48,24 +51,24 @@ const createDocument = async (documentBody, files, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service does not match the provided field');
     }
 
-    if (notarizationFieldDoc.name !== notarizationField.name) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field name does not match');
-    }
+    // if (notarizationFieldDoc.name !== notarizationField.name) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field name does not match');
+    // }
 
-    if (notarizationFieldDoc.description !== notarizationField.description) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field description does not match');
-    }
-    if (notarizationServiceDoc.name !== notarizationService.name) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name does not match');
-    }
+    // if (notarizationFieldDoc.description !== notarizationField.description) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field description does not match');
+    // }
+    // if (notarizationServiceDoc.name !== notarizationService.name) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name does not match');
+    // }
 
-    if (notarizationServiceDoc.description !== notarizationService.description) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service description does not match');
-    }
+    // if (notarizationServiceDoc.description !== notarizationService.description) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service description does not match');
+    // }
 
-    if (notarizationServiceDoc.price !== notarizationService.price) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service price does not match');
-    }
+    // if (notarizationServiceDoc.price !== notarizationService.price) {
+    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service price does not match');
+    // }
 
     const newDocument = new Document({
       files: [],
@@ -75,22 +78,28 @@ const createDocument = async (documentBody, files, userId) => {
         fieldId: notarizationService.fieldId,
         description: notarizationService.description,
         price: notarizationService.price,
+        required_documents: notarizationService.required_documents,
+        code: notarizationService.code,
       },
       notarizationField: {
         id: notarizationField.id,
         name: notarizationField.name,
         description: notarizationField.description,
+        name_en: notarizationField.name_en,
+        code: notarizationField.code,
       },
       requesterInfo: {
+        fullName: requesterInfo.fullName,
         citizenId: requesterInfo.citizenId,
         phoneNumber: requesterInfo.phoneNumber,
         email: requesterInfo.email,
       },
       userId,
       createdAt: Date.now(),
+      amount,
     });
 
-    const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, newDocument._id)));
+    const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
     const formattedFiles = files.map((file, index) => ({
       filename: `${Date.now()}-${file.originalname}`,
       firebaseUrl: fileUrls[index],
@@ -98,6 +107,8 @@ const createDocument = async (documentBody, files, userId) => {
 
     newDocument.files = formattedFiles;
     await newDocument.save();
+
+    await emailService.sendDocumentUploadEmail(requesterInfo.email, requesterInfo.fullName, newDocument._id);
 
     return newDocument;
   } catch (error) {
@@ -126,19 +137,61 @@ const createStatusTracking = async (documentId, status) => {
 };
 
 const getHistoryByUserId = async (userId) => {
-  return Document.find({ userId });
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
+
+    const history = await Document.aggregate([
+      {
+        $match: { userId: new mongoose.Types.ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: 'statustrackings',
+          localField: '_id',
+          foreignField: 'documentId',
+          as: 'status',
+          pipeline: [{ $sort: { updatedAt: -1 } }, { $limit: 1 }],
+        },
+      },
+      {
+        $addFields: {
+          status: { $arrayElemAt: ['$status', 0] },
+        },
+      },
+    ]);
+
+    return history;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error fetching history by user ID:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to fetch history by user ID');
+  }
 };
 
 const getHistoryWithStatus = async (userId) => {
-  const history = await Document.find({ userId });
-  const statusTrackings = await StatusTracking.find({ documentId: { $in: history.map((doc) => doc._id) } });
-  return history.map((doc) => {
-    const statusTracking = statusTrackings.find((tracking) => tracking.documentId.toString() === doc._id.toString());
-    return {
-      ...doc.toObject(),
-      status: statusTracking.status,
-    };
-  });
+  const history = await Document.aggregate([
+    {
+      $match: { userId: new ObjectId(userId) },
+    },
+    {
+      $lookup: {
+        from: 'statustrackings',
+        localField: '_id',
+        foreignField: 'documentId',
+        as: 'status',
+        pipeline: [{ $sort: { updatedAt: -1 } }, { $limit: 1 }],
+      },
+    },
+  ]);
+
+  return history.map((doc) => ({
+    ...doc,
+    status: doc.status.length > 0 ? doc.status[0] : null,
+  }));
 };
 
 const getDocumentStatus = async (documentId) => {
@@ -151,99 +204,211 @@ const getDocumentStatus = async (documentId) => {
   }
 };
 
-const getDocumentByRole = async (role) => {
+const getTotalDocuments = async (status) => {
+  const countQueries = {
+    processing: () => StatusTracking.countDocuments({ status: 'processing' }),
+    readyToSign: () =>
+      RequestSignature.countDocuments({
+        'approvalStatus.notary.approved': true,
+        'approvalStatus.user.approved': true,
+      }),
+    pendingSignature: () =>
+      RequestSignature.countDocuments({
+        $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+      }),
+  };
+
+  return countQueries[status]();
+};
+
+const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
   try {
-    let statusFilter = [];
+    // Ensure limit and page are converted to numbers
+    limit = Number(limit);
+    page = Number(page);
 
-    if (role === 'notary') {
-      statusFilter = ['processing'];
-    } else if (role === 'secretary') {
-      statusFilter = ['pending', 'verification', 'digitalSignature'];
-    } else {
-      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+    // Validate limit and page
+    if (isNaN(limit) || limit <= 0) {
+      limit = 10; // Default to 10 if invalid
     }
 
-    const statusTrackings = await StatusTracking.find({ status: { $in: statusFilter } });
+    if (isNaN(page) || page <= 0) {
+      page = 1; // Default to 1 if invalid
+    }
 
-    const documentIds = statusTrackings.map((tracking) => tracking.documentId);
+    const skipDocuments = (page - 1) * limit;
 
-    const documents = await Document.find({ _id: { $in: documentIds } });
+    const statusQueries = {
+      processing: async () => {
+        const documents = await StatusTracking.find({ status: 'processing' })
+          .skip(skipDocuments)
+          .limit(limit)
+          .populate('documentId'); // Added populate to get document details
 
-    const result = documents.map((doc) => {
-      const statusTracking = statusTrackings.find((tracking) => tracking.documentId.toString() === doc._id.toString());
-      return {
-        ...doc.toObject(),
-        status: statusTracking.status,
-      };
-    });
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'processing',
+        }));
+      },
+      readyToSign: async () => {
+        const documents = await RequestSignature.find({
+          'approvalStatus.notary.approved': false,
+          'approvalStatus.user.approved': true,
+        })
+          .populate('documentId')
+          .skip(skipDocuments)
+          .limit(limit)
+          .sort({ createdAt: -1 });
 
-    return result;
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'readyToSign',
+        }));
+      },
+      pendingSignature: async () => {
+        const documents = await RequestSignature.find({
+          $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+        })
+          .populate('documentId')
+          .skip(skipDocuments)
+          .limit(limit)
+          .sort({ createdAt: -1 });
+
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'pendingSignature',
+        }));
+      },
+      // Handle the case where no status is provided
+      default: async () => {
+        // Implement logic to fetch all documents (or return an error)
+        const documents = await Document.find().skip(skipDocuments).limit(limit);
+        return documents.map((doc) => ({
+          ...doc.toObject(),
+          status: 'default',
+        }));
+      },
+    };
+
+    // Execute the query based on status or default
+    const documents = await (status && statusQueries[status] ? statusQueries[status]() : statusQueries.default());
+
+    // Count total documents for pagination.  This needs to be adjusted based on how you handle the default case.
+    const totalDocuments = await getTotalDocuments(status || 'default'); // Pass 'default' if status is undefined
+
+    return {
+      documents,
+      pagination: {
+        page,
+        limit,
+        totalPages: Math.ceil(totalDocuments / limit),
+        totalDocuments,
+      },
+    };
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-
-    console.error('Error retrieving documents by role:', error.message);
+    console.error('Error retrieving documents:', error.message);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve documents');
   }
 };
 
-const forwardDocumentStatus = async (documentId, action, role, userId) => {
+const forwardDocumentStatus = async (documentId, action, role, userId, feedback) => {
   try {
-    const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
+    const validStatuses = ['pending', 'processing', 'digitalSignature', 'completed'];
     const roleStatusMap = {
-      notary: ['processing'],
-      secretary: ['pending', 'verification', 'digitalSignature'], // temporary
+      notary: ['pending', 'processing', 'digitalSignature'],
     };
 
-    let newStatus;
+    // Fetch current status once and reuse
+    const currentStatus = await StatusTracking.findOne({ documentId }, 'status');
+    if (!currentStatus) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
+    }
 
+    // Validate role permissions
+    if (!roleStatusMap[role].includes(currentStatus.status)) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
+    }
+
+    // Validate action and handle feedback requirements
+    let newStatus;
     if (action === 'accept') {
-      const currentStatus = await StatusTracking.findOne({ documentId }, 'status');
-      if (!currentStatus) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Document status not found');
+      if (currentStatus.status === 'rejected') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Document already been rejected');
       }
-      if (!roleStatusMap[role]) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
-      }
-      if (!roleStatusMap[role].includes(currentStatus.status)) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents');
-      }
+
       const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
 
-      if (currentStatusIndex === -1) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid current status');
+      // Disallow forwarding from 'digitalSignature' to 'completed'
+      if (currentStatus.status === 'digitalSignature') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot forward from digitalSignature to completed');
       }
+
       newStatus = validStatuses[currentStatusIndex + 1];
+
       if (!newStatus) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Document has already reached final status');
       }
     } else if (action === 'reject') {
+      if (!feedback) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Feedback is required for rejection');
+      }
       newStatus = 'rejected';
     } else {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
     }
 
+    if (newStatus === 'digitalSignature') {
+      const newRequestSignature = new RequestSignature({
+        documentId,
+        signatureImage: null,
+        approvalStatus: {
+          notary: {
+            approved: false,
+            approvedAt: null,
+          },
+          user: {
+            approved: false,
+            approvedAt: null,
+          },
+        },
+      });
+      await newRequestSignature.save();
+    }
+
+    // Create approve history
     const approveHistory = new ApproveHistory({
       userId,
       documentId,
-      beforeStatus: (await StatusTracking.findOne({ documentId }, 'status')).status,
+      beforeStatus: currentStatus.status,
       afterStatus: newStatus,
     });
-
     await approveHistory.save();
 
-    const result = await StatusTracking.updateOne(
-      { documentId },
-      {
-        status: newStatus,
-        updatedAt: new Date(),
-      }
-    );
+    // Prepare update data
+    const updateData = {
+      status: newStatus,
+      updatedAt: new Date(),
+      ...(feedback && { feedback }), // Only include feedback if it exists
+    };
 
-    if (result.nModified === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'No status found for this document');
+    // Fetch email in parallel with approve history save
+    const [email] = await Promise.all([
+      Document.findOne({ _id: documentId }, 'requesterInfo.email'),
+      StatusTracking.updateOne({ documentId }, updateData),
+    ]);
+
+    if (!email.requesterInfo.email) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
+
+    // Send email notification
+    await emailService.sendDocumentStatusUpdateEmail(
+      email.requesterInfo.email,
+      documentId,
+      currentStatus.status,
+      newStatus,
+      feedback
+    );
 
     return {
       message: `Document status updated to ${newStatus}`,
@@ -260,13 +425,52 @@ const forwardDocumentStatus = async (documentId, action, role, userId) => {
 
 const getApproveHistory = async (userId) => {
   try {
-    const history = await ApproveHistory.find({ userId });
+    const history = await ApproveHistory.aggregate([
+      {
+        $match: { userId: new mongoose.Types.ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: 'documents',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'document',
+        },
+      },
+      {
+        $unwind: '$document',
+      },
+      {
+        $project: {
+          _id: 1,
+          documentId: 1,
+          createdDate: 1,
+          beforeStatus: 1,
+          afterStatus: 1,
+          'document.notarizationField.name': 1,
+          'document.notarizationService.name': 1,
+          'document.requesterInfo.fullName': 1,
+        },
+      },
+      {
+        $sort: { createdDate: -1 },
+      },
+    ]);
 
     if (history.length === 0) {
       throw new ApiError(httpStatus.NOT_FOUND, 'No approval history found for this user.');
     }
 
-    return history;
+    return history.map((record) => ({
+      _id: record._id,
+      documentId: record.documentId,
+      createdDate: record.createdDate,
+      beforeStatus: record.beforeStatus,
+      afterStatus: record.afterStatus,
+      notarizationFieldName: record.document.notarizationField.name,
+      notarizationServiceName: record.document.notarizationService.name,
+      requesterName: record.document.requesterInfo.fullName,
+    }));
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -277,51 +481,86 @@ const getApproveHistory = async (userId) => {
 };
 
 const getAllNotarizations = async (filter, options) => {
-  const notatizations = await Document.paginate(filter, options);
-  return notatizations;
+  const page = options.page && options.page > 0 ? parseInt(options.page, 10) : 1;
+  const limit = options.limit && options.limit > 0 ? parseInt(options.limit, 10) : 10;
+  const skip = (page - 1) * limit;
+
+  const sortBy = options.sortBy || 'createdAt';
+
+  const documents = await Document.aggregate([
+    { $match: filter },
+    {
+      $lookup: {
+        from: 'statustrackings',
+        let: { documentId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$documentId', '$$documentId'] } } },
+          { $sort: { updatedAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: 'status',
+      },
+    },
+    {
+      $addFields: {
+        status: { $arrayElemAt: ['$status', 0] },
+      },
+    },
+    {
+      $sort: { [sortBy]: -1 },
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    },
+  ]);
+
+  const totalDocuments = await Document.countDocuments(filter);
+
+  return {
+    results: documents,
+    page,
+    limit,
+    totalPages: Math.ceil(totalDocuments / limit),
+    totalResults: totalDocuments,
+  };
 };
 
-const approveSignatureByUser = async (documentId, amount, signatureImage) => {
+const approveSignatureByUser = async (documentId, signatureImage) => {
   try {
-    console.log(signatureImage);
+    if (!ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
+
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
     if (statusTracking.status !== 'digitalSignature') {
       throw new ApiError(httpStatus.CONFLICT, 'Document is not ready for digital signature');
     }
 
-    let requestSignature = await RequestSignature.findOne({ documentId });
-
+    const requestSignature = await RequestSignature.findOne({ documentId });
     if (!requestSignature) {
-      if (!signatureImage || signatureImage.length === 0) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No signature image provided');
-      }
-
-      const newRequestSignature = new RequestSignature({
-        documentId,
-        amount,
-        signatureImage,
-        approvalStatus: {
-          secretary: {
-            approved: false,
-            approvedAt: null,
-          },
-          user: {
-            approved: true,
-            approvedAt: new Date(),
-          },
-        },
-      });
-
-      await newRequestSignature.save();
-      requestSignature = await RequestSignature.findOne({ documentId });
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the document yet');
     }
 
-    requestSignature.signatureImage = signatureImage || requestSignature.signatureImage;
+    if (requestSignature.approvalStatus.user.approved) {
+      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has already approved the document');
+    }
+
+    requestSignature.signatureImage = signatureImage;
+    requestSignature.approvalStatus.user = {
+      approved: true,
+      approvedAt: new Date(),
+    };
 
     await requestSignature.save();
 
-    return requestSignature;
+    return {
+      message: 'User approved and signed the document successfully',
+      documentId,
+    };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -331,8 +570,14 @@ const approveSignatureByUser = async (documentId, amount, signatureImage) => {
   }
 };
 
-const approveSignatureBySecretary = async (documentId, userId) => {
+const approveSignatureByNotary = async (documentId, userId) => {
   try {
+    if (!ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
+    if (!ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
     const statusTracking = await StatusTracking.findOne({ documentId });
     // Check if the document is in the correct status
     if (statusTracking.status !== 'digitalSignature') {
@@ -348,13 +593,6 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has not approved the document yet');
     }
 
-    requestSignature.approvalStatus.secretary = {
-      approved: true,
-      approvedAt: new Date(),
-    };
-
-    await requestSignature.save();
-
     const document = await Document.findById(documentId);
     if (!document) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Document not found');
@@ -368,11 +606,14 @@ const approveSignatureBySecretary = async (documentId, userId) => {
     // Create a new payment object
     const payment = new Payment({
       orderCode: generateOrderCode(),
-      amount: document.notarizationService.price,
+      amount: document.notarizationService.price * document.amount,
       description: `${document._id}`,
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
       userId,
+      documentId,
+      serviceId: document.notarizationService.id,
+      fieldId: document.notarizationField.id,
     });
 
     await payment.save();
@@ -412,21 +653,175 @@ const approveSignatureBySecretary = async (documentId, userId) => {
       afterStatus: 'completed',
     });
 
+    requestSignature.approvalStatus.notary = {
+      approved: true,
+      approvedAt: new Date(),
+    };
+
+    await requestSignature.save();
+
     await approveHistory.save();
+
+    const user = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
+    if (!user) {
+      console.log('This is email', user);
+      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
+    }
+
+    await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
+
     return {
-      message: 'Secretary approved and signed the document successfully',
+      message: 'Notary approved and signed the document successfully',
       documentId,
     };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve signature by secretary:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by secretary');
+    console.error('Error approve signature by notary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by notary');
+  }
+};
+
+const autoVerifyDocument = async () => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+
+    const pendingDocuments = await StatusTracking.aggregate([
+      {
+        $match: {
+          status: 'pending',
+          updatedAt: { $lt: oneMinuteAgo },
+        },
+      },
+      {
+        $lookup: {
+          from: 'documents',
+          localField: 'documentId',
+          foreignField: '_id',
+          as: 'documentInfo',
+        },
+      },
+      { $unwind: '$documentInfo' },
+    ]);
+
+    const updatePromises = pendingDocuments.map(async (tracking) => {
+      const document = tracking.documentInfo;
+
+      if (!document?.notarizationService?.required_documents) {
+        console.log(`Document ${tracking._id} lacks notarization requirements`);
+        return null;
+      }
+
+      const requiredDocs = document.notarizationService.required_documents;
+      const existingFileNames = document.files.map((file) => file.filename);
+
+      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
+
+      const newStatus = missingDocs.length === 0 ? 'processing' : 'rejected';
+
+      await StatusTracking.updateOne(
+        { _id: tracking._id },
+        {
+          $set: {
+            status: newStatus,
+            updatedAt: new Date(),
+            feedback: missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined,
+          },
+        }
+      );
+
+      emailService.sendDocumentStatusUpdateEmail(
+        document.requesterInfo.email,
+        document._id,
+        'pending',
+        newStatus,
+        missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined
+      );
+
+      await new ApproveHistory({
+        userId: null,
+        documentId: document._id,
+        beforeStatus: 'pending',
+        afterStatus: newStatus,
+        createdDate: new Date(),
+      }).save();
+
+      return {
+        documentId: document._id,
+        status: newStatus,
+        missingDocs: missingDocs.length > 0 ? missingDocs : null,
+      };
+    });
+
+    const results = (await Promise.all(updatePromises)).filter(Boolean);
+
+    console.log(`Auto-verification completed: ${results.length} documents processed`);
+    return results;
+  } catch (error) {
+    console.error('Auto-verification error:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Document auto-verification failed');
+  }
+};
+
+const getDocumentById = async (documentId) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(documentId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid document ID');
+    }
+
+    const document = await Document.aggregate([
+      {
+        $match: { _id: new mongoose.Types.ObjectId(documentId) },
+      },
+      {
+        $lookup: {
+          from: 'statustrackings',
+          let: { documentId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$documentId', '$$documentId'] },
+              },
+            },
+            { $sort: { updatedAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: 'status',
+        },
+      },
+      {
+        $lookup: {
+          from: 'requestsignature',
+          localField: '_id',
+          foreignField: 'documentId',
+          as: 'signature',
+        },
+      },
+      {
+        $addFields: {
+          status: { $arrayElemAt: ['$status', 0] },
+          signature: { $arrayElemAt: ['$signature', 0] },
+        },
+      },
+    ]);
+
+    if (!document || document.length === 0) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Document not found');
+    }
+
+    return document[0];
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    console.error('Error fetching document:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to fetch document');
   }
 };
 
 module.exports = {
+  uploadFileToFirebase,
   createDocument,
   createStatusTracking,
   getHistoryByUserId,
@@ -436,6 +831,8 @@ module.exports = {
   getApproveHistory,
   getAllNotarizations,
   approveSignatureByUser,
-  approveSignatureBySecretary,
+  approveSignatureByNotary,
   getHistoryWithStatus,
+  autoVerifyDocument,
+  getDocumentById,
 };
