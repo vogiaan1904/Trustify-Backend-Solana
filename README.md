@@ -131,7 +131,7 @@ DOCKER_PASSWORD=YOUR_DOCKER_PASSWORD
 
 ## API Documentation
 
-The API documentation can be accessed at `/api-docs`. You can view the list of available APIs and their specifications by running the server and visiting `http://localhost:3000/v1/docs` in your browser.
+The API documentation can be accessed at `/v1/docs`. You can view the list of available APIs and their specifications by running the server and visiting `http://localhost:3000/v1/docs` in your browser.
 
 ## Testing
 
