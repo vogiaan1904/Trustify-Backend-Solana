@@ -491,7 +491,7 @@ const getApproveHistory = async (userId) => {
       _id: record._id,
       createdDate: record.createdDate,
       beforeStatus: record.beforeStatus,
-      afterStatus: record.afterStatus,
+      status: record.afterStatus,
       documentId: {
         id: record.document._id,
         ...record.document,
