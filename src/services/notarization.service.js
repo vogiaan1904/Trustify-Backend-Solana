@@ -475,9 +475,7 @@ const getApproveHistory = async (userId) => {
           createdDate: 1,
           beforeStatus: 1,
           afterStatus: 1,
-          'document.notarizationField.name': 1,
-          'document.notarizationService.name': 1,
-          'document.requesterInfo.fullName': 1,
+          document: 1,
         },
       },
       {
@@ -491,13 +489,13 @@ const getApproveHistory = async (userId) => {
 
     return history.map((record) => ({
       _id: record._id,
-      documentId: record.documentId,
       createdDate: record.createdDate,
       beforeStatus: record.beforeStatus,
       afterStatus: record.afterStatus,
-      notarizationFieldName: record.document.notarizationField.name,
-      notarizationServiceName: record.document.notarizationService.name,
-      requesterName: record.document.requesterInfo.fullName,
+      documentId: {
+        id: record.document._id,
+        ...record.document,
+      },
     }));
   } catch (error) {
     if (error instanceof ApiError) {
