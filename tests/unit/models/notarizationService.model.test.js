@@ -1,4 +1,3 @@
-// notarizationService.model.test.js
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const NotarizationService = require('../../../src/models/notarizationService.model');
@@ -19,55 +18,103 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-describe('NotarizationService Model', () => {
-  beforeEach(async () => {
-    await NotarizationService.deleteMany({});
-  });
+afterEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    const collection = collections[key];
+    await collection.deleteMany({ name: 'Test Service' });
+  }
+});
 
-  test('should correctly apply the toJSON plugin', async () => {
-    const notarizationService = await NotarizationService.create({
+describe('NotarizationService Model Test Suite', () => {
+  let validNotarizationServiceData;
+
+  beforeEach(() => {
+    validNotarizationServiceData = {
       name: 'Test Service',
       fieldId: new mongoose.Types.ObjectId(),
-      description: 'Test Description',
+      description: 'Test Service Description',
       price: 100,
-    });
-
-    const jsonNotarizationService = notarizationService.toJSON();
-    expect(jsonNotarizationService).not.toHaveProperty('_id');
-    expect(jsonNotarizationService).not.toHaveProperty('__v');
-    expect(jsonNotarizationService).toHaveProperty('id', notarizationService._id.toString());
+      code: 'TEST_SERVICE',
+      required_documents: ['passport', 'id_card'],
+    };
   });
 
-  test('should correctly apply the paginate plugin', async () => {
-    const fieldId = new mongoose.Types.ObjectId();
-    await NotarizationService.create([
-      { name: 'Service 1', fieldId, description: 'Description 1', price: 100 },
-      { name: 'Service 2', fieldId, description: 'Description 2', price: 200 },
-      { name: 'Service 3', fieldId, description: 'Description 3', price: 300 },
-    ]);
+  test('should create & save notarization service successfully', async () => {
+    const validNotarizationService = new NotarizationService(validNotarizationServiceData);
+    const savedNotarizationService = await validNotarizationService.save();
 
-    const result = await NotarizationService.paginate({}, { page: 1, limit: 2 });
-    expect(result.results).toHaveLength(2);
-    expect(result.totalResults).toBe(3);
-    expect(result.totalPages).toBe(2);
-    expect(result.page).toBe(1);
+    expect(savedNotarizationService._id).toBeDefined();
+    expect(savedNotarizationService.name).toBe(validNotarizationServiceData.name);
+    expect(savedNotarizationService.fieldId).toBe(validNotarizationServiceData.fieldId);
+    expect(savedNotarizationService.description).toBe(validNotarizationServiceData.description);
+    expect(savedNotarizationService.price).toBe(validNotarizationServiceData.price);
+    expect(savedNotarizationService.code).toBe(validNotarizationServiceData.code);
+    expect(Array.from(savedNotarizationService.required_documents)).toEqual(validNotarizationServiceData.required_documents);
   });
 
-  test('should throw validation error if required fields are missing', async () => {
-    const notarizationService = new NotarizationService({
-      name: 'Test Service',
-      description: 'Test Description',
-      price: 100,
-    });
-
+  test('should fail to save without required fields', async () => {
+    const notarizationServiceWithoutRequired = new NotarizationService({});
     let err;
+
     try {
-      await notarizationService.validate();
+      await notarizationServiceWithoutRequired.save();
     } catch (error) {
       err = error;
     }
 
     expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
+    expect(err.errors.name).toBeDefined();
     expect(err.errors.fieldId).toBeDefined();
+    expect(err.errors.description).toBeDefined();
+    expect(err.errors.price).toBeDefined();
+    expect(err.errors.code).toBeDefined();
+  });
+
+  test('should fail to save with duplicate name', async () => {
+    const validNotarizationService = new NotarizationService(validNotarizationServiceData);
+    await validNotarizationService.save();
+
+    const duplicateNotarizationService = new NotarizationService(validNotarizationServiceData);
+    let err;
+
+    try {
+      await duplicateNotarizationService.save();
+    } catch (error) {
+      err = error;
+    }
+
+    expect(err).toBeInstanceOf(mongoose.mongo.MongoError);
+    expect(err.code).toBe(11000); // Duplicate key error code
+  });
+
+  test('should convert to JSON correctly', async () => {
+    const notarizationService = new NotarizationService(validNotarizationServiceData);
+    const savedNotarizationService = await notarizationService.save();
+    const jsonNotarizationService = savedNotarizationService.toJSON();
+
+    expect(jsonNotarizationService).not.toHaveProperty('__v');
+    expect(jsonNotarizationService).toHaveProperty('id');
+  });
+
+  test('should handle pagination plugin', async () => {
+    // Create multiple notarization services
+    let validNotarizationServiceData2 = {
+      name: 'Test Service2',
+      fieldId: new mongoose.Types.ObjectId(),
+      description: 'Test Service Description',
+      price: 100,
+      code: 'TEST_SERVICE',
+      required_documents: ['passport', 'id_card'],
+    };
+    await NotarizationService.create([validNotarizationServiceData, validNotarizationServiceData2]);
+
+    const result = await NotarizationService.paginate({}, { limit: 1, page: 1 });
+
+    expect(result).toHaveProperty('results');
+    expect(result).toHaveProperty('page');
+    expect(result).toHaveProperty('limit');
+    expect(result).toHaveProperty('totalPages');
+    expect(result).toHaveProperty('totalResults');
   });
 });

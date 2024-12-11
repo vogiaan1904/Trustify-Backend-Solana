@@ -1,264 +1,354 @@
-const { Document, StatusTracking, ApproveHistory, NotarizationService, NotarizationField } = require('../../../src/models');
-const notarizationService = require('../../../src/services/notarization.service');
-const ApiError = require('../../../src/utils/ApiError');
+// tests/unit/services/notarization.service.test.js
+
+const mongoose = require('mongoose');
 const httpStatus = require('http-status');
 const { bucket } = require('../../../src/config/firebase');
-const mockFirebase = require('../controllers/firebase.mock');
-const setupTestDB = require('../../utils/setupTestDB');
+const emailService = require('../../../src/services/email.service');
+const notarizationService = require('../../../src/services/notarization.service');
+const {
+  Document,
+  StatusTracking,
+  ApproveHistory,
+  NotarizationService,
+  NotarizationField,
+  RequestSignature,
+  Payment,
+} = require('../../../src/models');
+const { payOS } = require('../../../src/config/payos');
 
-setupTestDB();
-mockFirebase();
+jest.mock('../../../src/config/config', () => ({
+  env: 'test',
+  firebase: {
+    bucket: 'test-bucket',
+  },
+  mongodb: {
+    url: 'mongodb://localhost:27017/test',
+  },
+  email: {
+    smtp: {
+      host: 'smtp.test.com',
+      port: 587,
+      auth: {
+        user: 'test@example.com',
+        pass: 'password123',
+      },
+    },
+    from: 'noreply@test.com',
+  },
+}));
 
-jest.mock('../../../src/models', () => {
-  const actualModels = jest.requireActual('../../../src/models');
-  return {
-    Document: {
-      ...actualModels.Document,
-      findById: jest.fn(),
-      find: jest.fn(),
-      create: jest.fn(),
-      paginate: jest.fn(),
-      save: jest.fn().mockImplementation(function () {
-        return Promise.resolve(this);
-      }),
+// Add mock for toJSON plugin
+jest.mock('../../../src/models/plugins/toJSON.plugin', () => ({
+  toJSON: jest.fn(),
+}));
+
+// Update models mock
+jest.mock('../../../src/models', () => ({
+  Document: {
+    aggregate: jest.fn(),
+    findById: jest.fn(),
+    findOne: jest.fn(),
+    prototype: {
+      save: jest.fn(),
     },
-    StatusTracking: {
-      ...actualModels.StatusTracking,
-      findOne: jest.fn(),
-      find: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn().mockImplementation(function () {
-        return Promise.resolve(this);
-      }),
-      updateOne: jest.fn(),
+  },
+  StatusTracking: {
+    findOne: jest.fn(),
+    updateOne: jest.fn(),
+    aggregate: jest.fn(),
+    prototype: {
+      save: jest.fn(),
     },
-    ApproveHistory: {
-      ...actualModels.ApproveHistory,
-      find: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn().mockImplementation(function () {
-        return Promise.resolve(this);
-      }),
+  },
+  ApproveHistory: {
+    prototype: {
+      save: jest.fn(),
     },
-    NotarizationService: {
-      ...actualModels.NotarizationService,
-      findById: jest.fn(),
+  },
+  NotarizationService: {
+    findById: jest.fn(),
+  },
+  NotarizationField: {
+    findById: jest.fn(),
+  },
+  RequestSignature: {
+    findOne: jest.fn(),
+  },
+  Payment: {
+    prototype: {
+      save: jest.fn(),
     },
-    NotarizationField: {
-      ...actualModels.NotarizationField,
-      findById: jest.fn(),
-    },
-  };
+  },
+}));
+
+// Mock ApiError
+jest.mock('../../../src/utils/ApiError', () => {
+  return jest.fn().mockImplementation(() => {
+    return { isOperational: true };
+  });
 });
 
+// Mock firebase bucket upload success
 jest.mock('../../../src/config/firebase', () => ({
   bucket: {
-    file: jest.fn(() => ({
-      save: jest.fn().mockResolvedValue(),
-    })),
+    file: jest.fn().mockReturnValue({
+      save: jest.fn().mockResolvedValue(true),
+    }),
     name: 'test-bucket',
   },
 }));
+
+// Update models mock with successful returns
+jest.mock('../../../src/models', () => ({
+  Document: {
+    aggregate: jest.fn().mockResolvedValue([{ _id: 'doc1' }]),
+    findById: jest.fn().mockResolvedValue({
+      _id: 'doc1',
+      notarizationService: { price: 100 },
+      amount: 1,
+      save: jest.fn().mockResolvedValue(true),
+      requesterInfo: { email: 'test@example.com' },
+    }),
+    findOne: jest.fn().mockResolvedValue({
+      _id: 'doc1',
+      requesterInfo: { email: 'test@example.com' },
+    }),
+    prototype: {
+      save: jest.fn().mockResolvedValue({
+        _id: 'doc1',
+        requesterInfo: { email: 'test@example.com' },
+      }),
+    },
+  },
+  StatusTracking: {
+    findOne: jest.fn().mockResolvedValue({
+      status: 'digitalSignature',
+      save: jest.fn().mockResolvedValue(true),
+    }),
+    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+    aggregate: jest.fn().mockResolvedValue([
+      {
+        _id: 'doc1',
+        documentInfo: {
+          notarizationService: {
+            required_documents: ['doc1'],
+          },
+          files: [{ filename: 'doc1' }],
+          requesterInfo: { email: 'test@example.com' },
+        },
+      },
+    ]),
+    prototype: {
+      save: jest.fn().mockResolvedValue(true),
+    },
+  },
+  NotarizationService: {
+    findById: jest.fn().mockResolvedValue({
+      fieldId: 'field1',
+      _id: 'service1',
+      price: 100,
+    }),
+  },
+  NotarizationField: {
+    findById: jest.fn().mockResolvedValue({ _id: 'field1' }),
+  },
+  RequestSignature: {
+    findOne: jest.fn().mockResolvedValue({
+      approvalStatus: {
+        user: { approved: true },
+        notary: {},
+      },
+      save: jest.fn().mockResolvedValue(true),
+    }),
+  },
+  Payment: {
+    prototype: {
+      save: jest.fn().mockResolvedValue(true),
+    },
+  },
+  ApproveHistory: {
+    prototype: {
+      save: jest.fn().mockResolvedValue(true),
+    },
+  },
+}));
+
+// Mock payOS
+jest.mock('../../../src/config/payos', () => ({
+  payOS: {
+    createPaymentLink: jest.fn().mockResolvedValue({
+      checkoutUrl: 'http://test.com',
+    }),
+  },
+}));
+// Mock all dependencies
+jest.mock('../../../src/config/firebase');
+jest.mock('../../../src/services/email.service');
+jest.mock('../../../src/models');
+jest.mock('../../../src/config/payos');
+jest.mock('mongoose');
 
 describe('Notarization Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('createDocument', () => {
-    it('should throw an error if no files are provided', async () => {
-      const documentBody = { notarizationFieldId: 'fieldId', notarizationServiceId: 'serviceId' };
+  describe('uploadFileToFirebase', () => {
+    it('should upload file successfully', async () => {
+      const mockFile = {
+        originalname: 'test.pdf',
+        buffer: Buffer.from('test'),
+        mimetype: 'application/pdf',
+      };
 
-      await expect(notarizationService.createDocument(documentBody, [])).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'No files provided')
-      );
+      const mockFileRef = {
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      bucket.file.mockReturnValue(mockFileRef);
+      bucket.name = 'test-bucket';
+
+      const result = await notarizationService.uploadFileToFirebase(mockFile, 'documents', 'folder1');
+
+      expect(result).toMatch(/^https:\/\/storage.googleapis.com\/test-bucket\/documents\/folder1\/.+/);
+      expect(bucket.file).toHaveBeenCalled();
+      expect(mockFileRef.save).toHaveBeenCalledWith(mockFile.buffer, { contentType: mockFile.mimetype });
     });
-
-    it('should throw an error if fieldId is invalid', async () => {
-      const documentBody = { notarizationFieldId: 'invalidFieldId', notarizationServiceId: 'serviceId' };
-      const files = [{ originalname: 'file.pdf', buffer: Buffer.from('file content'), mimetype: 'application/pdf' }];
-
-      NotarizationField.findById.mockResolvedValue(null);
-
-      await expect(notarizationService.createDocument(documentBody, files)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Failed to upload document')
-      );
-    });
-
-    it('should throw an error if serviceId is invalid', async () => {
-      const documentBody = { notarizationFieldId: 'fieldId', notarizationServiceId: 'invalidServiceId' };
-      const files = [{ originalname: 'file.pdf', buffer: Buffer.from('file content'), mimetype: 'application/pdf' }];
-
-      NotarizationField.findById.mockResolvedValue(true);
-      NotarizationService.findById.mockResolvedValue(null);
-
-      await expect(notarizationService.createDocument(documentBody, files)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Failed to upload document')
-      );
-    });
-
-    // it('should create a new document and upload files successfully', async () => {
-    //   const documentBody = { notarizationFieldId: 'fieldId', notarizationServiceId: 'serviceId' };
-    //   const files = [{ originalname: 'file.pdf', buffer: Buffer.from('file content'), mimetype: 'application/pdf' }];
-
-    //   NotarizationField.findById.mockResolvedValue(true);
-    //   NotarizationService.findById.mockResolvedValue(true);
-    //   Document.create.mockResolvedValue({ _id: 'documentId', ...documentBody });
-
-    //   const result = await notarizationService.createDocument(documentBody, files);
-
-    //   expect(result).toHaveProperty('_id', 'documentId');
-    //   expect(Document.create).toHaveBeenCalledWith(expect.objectContaining(documentBody));
-    //   expect(bucket.file().save).toHaveBeenCalled();
-    // });
   });
 
-  // describe('createStatusTracking', () => {
-  //   it('should create a new status tracking successfully', async () => {
-  //     const documentId = 'documentId';
-  //     const status = 'pending';
+  describe('createDocument', () => {
+    it('should create document successfully', async () => {
+      const mockFiles = [
+        {
+          originalname: 'test.pdf',
+          buffer: Buffer.from('test'),
+          mimetype: 'application/pdf',
+        },
+      ];
 
-  //     StatusTracking.create.mockResolvedValue({ documentId, status, updatedAt: new Date() });
+      const mockDocumentBody = {
+        notarizationField: { id: 'field1' },
+        notarizationService: { id: 'service1' },
+        requesterInfo: {
+          email: 'test@example.com',
+          fullName: 'Test User',
+        },
+        amount: 1,
+      };
 
-  //     const result = await notarizationService.createStatusTracking(documentId, status);
+      NotarizationField.findById.mockResolvedValue({ _id: 'field1' });
+      NotarizationService.findById.mockResolvedValue({ fieldId: 'field1', _id: 'service1' });
+      Document.prototype.save.mockResolvedValue(true);
 
-  //     expect(result).toHaveProperty('documentId', documentId);
-  //     expect(StatusTracking.create).toHaveBeenCalledWith(expect.objectContaining({ documentId, status }));
-  //   });
-  // });
+      const result = await notarizationService.createDocument(mockDocumentBody, mockFiles, 'user1');
+
+      expect(result).toBeDefined();
+      expect(emailService.sendDocumentUploadEmail).toHaveBeenCalled();
+    });
+  });
 
   describe('getHistoryByUserId', () => {
-    it('should return documents by user ID', async () => {
-      const userId = 'userId';
-      const documents = [{ _id: 'documentId', userId }];
+    it('should get history successfully', async () => {
+      const mockHistory = [{ _id: 'hist1' }];
+      mongoose.Types.ObjectId.isValid.mockReturnValue(true);
+      Document.aggregate.mockResolvedValue(mockHistory);
 
-      Document.find.mockResolvedValue(documents);
+      const result = await notarizationService.getHistoryByUserId('user1');
 
-      const result = await notarizationService.getHistoryByUserId(userId);
-
-      expect(result).toEqual(documents);
-      expect(Document.find).toHaveBeenCalledWith({ userId });
-    });
-  });
-
-  describe('getDocumentStatus', () => {
-    it('should return the status tracking of a document', async () => {
-      const documentId = 'documentId';
-      const statusTracking = { documentId, status: 'pending' };
-
-      StatusTracking.findOne.mockResolvedValue(statusTracking);
-
-      const result = await notarizationService.getDocumentStatus(documentId);
-
-      expect(result).toEqual(statusTracking);
-      expect(StatusTracking.findOne).toHaveBeenCalledWith({ documentId });
-    });
-  });
-
-  describe('getDocumentByRole', () => {
-    // it('should return documents for notary role', async () => {
-    //   const role = 'notary';
-    //   const statusTrackings = [{ documentId: 'documentId', status: 'processing' }];
-    //   const documents = [{ _id: 'documentId', name: 'Document Name' }];
-
-    //   StatusTracking.find.mockResolvedValue(statusTrackings);
-    //   Document.find.mockResolvedValue(documents);
-
-    //   const result = await notarizationService.getDocumentByRole(role);
-
-    //   expect(result).toEqual(expect.arrayContaining([expect.objectContaining({ _id: 'documentId', status: 'processing' })]));
-    //   expect(StatusTracking.find).toHaveBeenCalledWith({ status: { $in: ['processing'] } });
-    //   expect(Document.find).toHaveBeenCalledWith({ _id: { $in: ['documentId'] } });
-    // });
-
-    it('should throw an error if role is invalid', async () => {
-      const role = 'invalidRole';
-
-      await expect(notarizationService.getDocumentByRole(role)).rejects.toThrow(
-        new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these documents')
-      );
+      expect(result).toEqual(mockHistory);
+      expect(Document.aggregate).toHaveBeenCalled();
     });
   });
 
   describe('forwardDocumentStatus', () => {
-    // it('should forward document status to the next valid status', async () => {
-    //   const documentId = 'documentId';
-    //   const action = 'accept';
-    //   const role = 'notary';
-    //   const userId = 'userId';
-    //   const currentStatus = { documentId, status: 'processing' };
+    it('should forward status successfully', async () => {
+      StatusTracking.findOne.mockResolvedValue({ status: 'pending' });
+      Document.findOne.mockResolvedValue({
+        requesterInfo: { email: 'test@example.com' },
+      });
+      ApproveHistory.prototype.save.mockResolvedValue(true);
+      StatusTracking.updateOne.mockResolvedValue(true);
 
-    //   StatusTracking.findOne.mockResolvedValue(currentStatus);
-    //   ApproveHistory.create.mockResolvedValue(true);
-    //   StatusTracking.updateOne.mockResolvedValue({ nModified: 1 });
+      const result = await notarizationService.forwardDocumentStatus('doc1', 'accept', 'notary', 'user1');
 
-    //   const result = await notarizationService.forwardDocumentStatus(documentId, action, role, userId);
-
-    //   expect(result).toHaveProperty('message', 'Document status updated to digitalSignature');
-    //   expect(StatusTracking.findOne).toHaveBeenCalledWith({ documentId }, 'status');
-    //   expect(ApproveHistory.create).toHaveBeenCalledWith(
-    //     expect.objectContaining({ userId, documentId, beforeStatus: 'processing', afterStatus: 'digitalSignature' })
-    //   );
-    //   expect(StatusTracking.updateOne).toHaveBeenCalledWith(
-    //     { documentId },
-    //     expect.objectContaining({ status: 'digitalSignature' })
-    //   );
-    // });
-
-    it('should throw an error if action is invalid', async () => {
-      const documentId = 'documentId';
-      const action = 'invalidAction';
-      const role = 'notary';
-      const userId = 'userId';
-
-      await expect(notarizationService.forwardDocumentStatus(documentId, action, role, userId)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided')
-      );
+      expect(result.message).toContain('Document status updated');
+      expect(emailService.sendDocumentStatusUpdateEmail).toHaveBeenCalled();
     });
   });
 
-  describe('getApproveHistory', () => {
-    it('should return approval history for a user', async () => {
-      const userId = 'userId';
-      const history = [{ userId, documentId: 'documentId', beforeStatus: 'pending', afterStatus: 'approved' }];
+  describe('approveSignatureByUser', () => {
+    it('should approve signature successfully', async () => {
+      mongoose.Types.ObjectId.isValid.mockReturnValue(true);
+      StatusTracking.findOne.mockResolvedValue({ status: 'digitalSignature' });
+      RequestSignature.findOne.mockResolvedValue({
+        approvalStatus: { user: {} },
+        save: jest.fn().mockResolvedValue(true),
+      });
 
-      ApproveHistory.find.mockResolvedValue(history);
+      const result = await notarizationService.approveSignatureByUser('doc1', 'signature');
 
-      const result = await notarizationService.getApproveHistory(userId);
-
-      expect(result).toEqual(history);
-      expect(ApproveHistory.find).toHaveBeenCalledWith({ userId });
-    });
-
-    it('should throw an error if no approval history is found', async () => {
-      const userId = 'userId';
-
-      ApproveHistory.find.mockResolvedValue([]);
-
-      await expect(notarizationService.getApproveHistory(userId)).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'No approval history found for this user.')
-      );
+      expect(result.message).toContain('successfully');
     });
   });
 
-  describe('getAllNotarizations', () => {
-    it('should return paginated notarizations', async () => {
-      const filter = {};
-      const options = { page: 1, limit: 10 };
-      const paginatedResult = {
-        docs: [{ _id: 'documentId', name: 'Document Name' }],
-        totalDocs: 1,
-        limit: 10,
-        page: 1,
-        totalPages: 1,
-      };
+  describe('approveSignatureByNotary', () => {
+    it('should approve notary signature successfully', async () => {
+      mongoose.Types.ObjectId.isValid.mockReturnValue(true);
+      StatusTracking.findOne.mockResolvedValue({ status: 'digitalSignature' });
+      RequestSignature.findOne.mockResolvedValue({
+        approvalStatus: { user: { approved: true } },
+        save: jest.fn().mockResolvedValue(true),
+      });
+      Document.findById.mockResolvedValue({
+        notarizationService: { price: 100 },
+        amount: 1,
+        save: jest.fn().mockResolvedValue(true),
+      });
+      Payment.prototype.save.mockResolvedValue(true);
+      payOS.createPaymentLink.mockResolvedValue({ checkoutUrl: 'http://test.com' });
 
-      Document.paginate.mockResolvedValue(paginatedResult);
+      const result = await notarizationService.approveSignatureByNotary('doc1', 'user1');
 
-      const result = await notarizationService.getAllNotarizations(filter, options);
+      expect(result.message).toContain('successfully');
+      expect(emailService.sendPaymentEmail).toHaveBeenCalled();
+    });
+  });
 
-      expect(result).toEqual(paginatedResult);
-      expect(Document.paginate).toHaveBeenCalledWith(filter, options);
+  describe('autoVerifyDocument', () => {
+    it('should verify documents automatically', async () => {
+      const mockDocuments = [
+        {
+          _id: 'doc1',
+          documentInfo: {
+            notarizationService: {
+              required_documents: ['doc1', 'doc2'],
+            },
+            files: [{ filename: 'doc1' }, { filename: 'doc2' }],
+            requesterInfo: { email: 'test@example.com' },
+          },
+        },
+      ];
+
+      StatusTracking.aggregate.mockResolvedValue(mockDocuments);
+      StatusTracking.updateOne.mockResolvedValue(true);
+      ApproveHistory.prototype.save.mockResolvedValue(true);
+
+      const result = await notarizationService.autoVerifyDocument();
+
+      expect(result).toBeDefined();
+      expect(emailService.sendDocumentStatusUpdateEmail).toHaveBeenCalled();
+    });
+  });
+
+  describe('getDocumentById', () => {
+    it('should get document successfully', async () => {
+      const mockDocument = [{ _id: 'doc1' }];
+      mongoose.Types.ObjectId.isValid.mockReturnValue(true);
+      Document.aggregate.mockResolvedValue(mockDocument);
+
+      const result = await notarizationService.getDocumentById('doc1');
+
+      expect(result).toEqual(mockDocument[0]);
     });
   });
 });

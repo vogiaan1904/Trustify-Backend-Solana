@@ -1,101 +1,213 @@
-// // email.service.test.js
-// const nodemailer = require('nodemailer');
-// const config = require('../../../src/config/config');
-// const logger = require('../../../src/config/logger');
-// const emailService = require('../../../src/services/email.service'); // Adjust the path as necessary
+// tests/unit/services/email.service.test.js
 
-// // Mock the dependencies
-// jest.mock('nodemailer');
-// jest.mock('../../../src/config/config');
-// jest.mock('../../../src/config/logger');
+// First mock all external dependencies
+jest.mock('nodemailer');
+jest.mock('fs', () => ({
+  promises: {
+    readFile: jest.fn(),
+  },
+}));
+jest.mock('../../../src/config/logger');
+jest.mock('../../../src/config/config', () => ({
+  email: {
+    smtp: {
+      host: 'smtp.test.com',
+      port: 587,
+      auth: {
+        user: 'test@example.com',
+        pass: 'password123',
+      },
+    },
+    from: 'test@example.com',
+  },
+  env: 'test',
+}));
 
-// describe('Email Service', () => {
-//   let transportMock;
+// Then import dependencies
+const nodemailer = require('nodemailer');
+const fs = require('fs').promises;
+const path = require('path');
+const config = require('../../../src/config/config');
 
-//   beforeAll(() => {
-//     // Mock the transport object
-//     transportMock = {
-//       sendMail: jest.fn().mockResolvedValue(true),
-//       verify: jest.fn().mockResolvedValue(true),
-//     };
-//     nodemailer.createTransport.mockReturnValue(transportMock);
+// Create mock transport before importing email service
+const mockTransport = {
+  sendMail: jest.fn().mockResolvedValue(true),
+  verify: jest.fn().mockResolvedValue(true),
+};
 
-//     // Mock the config object
-//     config.email = {
-//       smtp: {},
-//       from: 'test@example.com',
-//     };
-//     config.env = 'development';
-//   });
+nodemailer.createTransport.mockReturnValue(mockTransport);
 
-//   afterEach(() => {
-//     jest.clearAllMocks();
-//   });
+// Now import email service
+const emailService = require('../../../src/services/email.service');
 
-//   test('sendEmail should call transport.sendMail with correct parameters', async () => {
-//     const to = 'user@example.com';
-//     const subject = 'Test Subject';
-//     const text = 'Test Text';
+describe('Email Service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-//     await emailService.sendEmail(to, subject, text);
+  describe('sendEmail', () => {
+    it('should send email successfully', async () => {
+      const to = 'test@example.com';
+      const subject = 'Test Subject';
+      const html = '<p>Test content</p>';
 
-//     expect(transportMock.sendMail).toHaveBeenCalledWith({
-//       from: config.email.from,
-//       to,
-//       subject,
-//       text,
-//     });
-//   });
+      await emailService.sendEmail(to, subject, html);
 
-//   test('sendResetPasswordEmail should call sendEmail with correct parameters', async () => {
-//     const to = 'user@example.com';
-//     const token = 'test-token';
-//     const expectedText = `Dear user,
-// To reset your password, click on this link: http://localhost:3100/v1/auth/reset-password?token=${token}
-// If you did not request any password resets, then ignore this email.`;
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to,
+        subject,
+        html,
+      });
+    });
 
-//     await emailService.sendResetPasswordEmail(to, token);
+    it('should throw error when email sending fails', async () => {
+      const error = new Error('Failed to send email');
+      mockTransport.sendMail.mockRejectedValueOnce(error);
 
-//     expect(transportMock.sendMail).toHaveBeenCalledWith({
-//       from: config.email.from,
-//       to,
-//       subject: 'Reset password',
-//       text: expectedText,
-//     });
-//   });
+      await expect(emailService.sendEmail('test@example.com', 'subject', 'html')).rejects.toThrow('Failed to send email');
+    });
+  });
 
-//   test('sendVerificationEmail should call sendEmail with correct parameters', async () => {
-//     const to = 'user@example.com';
-//     const token = 'test-token';
-//     const expectedText = `Dear user,
-// To verify your email, click on this link: http://localhost:3100/v1/auth/verify-email?token=${token}
-// If you did not create an account, then ignore this email.`;
+  describe('sendResetPasswordEmail', () => {
+    it('should send reset password email', async () => {
+      const to = 'test@example.com';
+      const token = 'reset-token';
+      const templateHtml = '<p>Reset password {{resetPasswordUrl}}</p>';
 
-//     await emailService.sendVerificationEmail(to, token);
+      fs.readFile.mockResolvedValueOnce(templateHtml);
 
-//     expect(transportMock.sendMail).toHaveBeenCalledWith({
-//       from: config.email.from,
-//       to,
-//       subject: 'Email Verification',
-//       text: expectedText,
-//     });
-//   });
+      await emailService.sendResetPasswordEmail(to, token);
 
-//   test('sendInvitationEmail should call sendEmail with correct parameters', async () => {
-//     const to = 'user@example.com';
-//     const sessionId = 'test-session-id';
-//     const expectedText = `Dear user,
-// You are invited to participate in a session
-// To join the session, click this link: http://localhost:3100/v1/session/joinSession/${sessionId}
-// If you did not create an account, then ignore this email.`;
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to,
+        subject: 'Reset password',
+        html: expect.stringContaining(token),
+      });
+    });
+  });
 
-//     await emailService.sendInvitationEmail(to, sessionId);
+  describe('sendVerificationEmail', () => {
+    it('should send verification email', async () => {
+      const to = 'test@example.com';
+      const token = 'verify-token';
+      const templateHtml = '<p>Verify email {{verificationEmailUrl}}</p>';
 
-//     expect(transportMock.sendMail).toHaveBeenCalledWith({
-//       from: config.email.from,
-//       to,
-//       subject: 'Session Invitation',
-//       text: expectedText,
-//     });
-//   });
-// });
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendVerificationEmail(to, token);
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to,
+        subject: 'Email Verification',
+        html: expect.stringContaining(token),
+      });
+    });
+  });
+
+  describe('sendInvitationEmail', () => {
+    it('should send invitation email', async () => {
+      const to = 'test@example.com';
+      const sessionId = 'session-123';
+      const templateHtml = '<p>Join session {{joinSessionURL}}</p>';
+
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendInvitationEmail(to, sessionId);
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to,
+        subject: 'Session Invitation',
+        html: expect.stringContaining(sessionId),
+      });
+    });
+  });
+
+  describe('sendDocumentUploadEmail', () => {
+    it('should send document upload email', async () => {
+      const to = 'test@example.com';
+      const userName = 'John Doe';
+      const documentId = 'doc-123';
+      const templateHtml = '<p>Document {{documentId}} uploaded by {{userName}}</p>';
+
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendDocumentUploadEmail(to, userName, documentId);
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to,
+        subject: 'Document Upload Confirmation',
+        html: expect.stringContaining(documentId),
+      });
+    });
+
+    it('should throw error when required parameters are missing', async () => {
+      await expect(emailService.sendDocumentUploadEmail()).rejects.toThrow('Missing required parameters');
+    });
+  });
+
+  describe('sendDocumentStatusUpdateEmail', () => {
+    it('should send status update email with feedback', async () => {
+      const email = 'test@example.com';
+      const documentId = 'doc-123';
+      const currentStatus = 'pending';
+      const newStatus = 'approved';
+      const feedback = 'Looks good';
+      const templateHtml = '<p>Status changed from {{currentStatus}} to {{newStatus}}</p>';
+
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendDocumentStatusUpdateEmail(email, documentId, currentStatus, newStatus, feedback);
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to: email,
+        subject: 'Cập nhật trạng thái tài liệu',
+        html: expect.stringContaining(newStatus),
+      });
+    });
+
+    it('should use rejected subject when status is rejected', async () => {
+      const templateHtml = '<p>Document rejected</p>';
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendDocumentStatusUpdateEmail(
+        'test@example.com',
+        'doc-123',
+        'pending',
+        'rejected',
+        'Rejected feedback'
+      );
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: 'Tài liệu bị từ chối',
+        })
+      );
+    });
+  });
+
+  describe('sendPaymentEmail', () => {
+    it('should send payment email', async () => {
+      const email = 'test@example.com';
+      const documentId = 'doc-123';
+      const paymentLinkResponse = { checkoutUrl: 'http://payment.url' };
+      const templateHtml = '<p>Payment link: {{paymentLink}}</p>';
+
+      fs.readFile.mockResolvedValueOnce(templateHtml);
+
+      await emailService.sendPaymentEmail(email, documentId, paymentLinkResponse);
+
+      expect(mockTransport.sendMail).toHaveBeenCalledWith({
+        from: config.email.from,
+        to: email,
+        subject: 'Thanh toán công chứng',
+        html: expect.stringContaining(paymentLinkResponse.checkoutUrl),
+      });
+    });
+  });
+});

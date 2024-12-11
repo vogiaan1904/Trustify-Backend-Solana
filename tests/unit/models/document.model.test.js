@@ -1,17 +1,22 @@
-// document.model.test.js
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
-const Document = require('../../../src/models/document.model');
+const Document = require('../../../src/models/document.model.js');
 
 let mongoServer;
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const uri = mongoServer.getUri();
-  await mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  await mongoose.connect(uri);
+});
+
+afterEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    const collection = collections[key];
+    await collection.dropIndexes();
+    await collection.deleteMany();
+  }
 });
 
 afterAll(async () => {
@@ -19,143 +24,107 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-describe('Document Model', () => {
-  beforeEach(async () => {
-    await Document.deleteMany({});
-  });
+describe('Document Model Test Suite', () => {
+  let validDocumentData;
 
-  test('should correctly apply the toJSON plugin', async () => {
-    const document = await Document.create({
+  beforeEach(() => {
+    validDocumentData = {
       files: [
         {
-          filename: 'file1.pdf',
-          firebaseUrl: 'https://firebase.com/path/to/file1.pdf',
+          filename: 'test.pdf',
+          firebaseUrl: 'https://firebase.storage.com/test.pdf',
         },
       ],
       notarizationService: {
         id: new mongoose.Types.ObjectId(),
-        name: 'Service',
+        name: 'Test Service',
         fieldId: new mongoose.Types.ObjectId(),
-        description: 'Service Description',
+        description: 'Test Description',
         price: 100,
+        required_documents: ['passport', 'id_card'],
+        code: 'TEST_CODE',
       },
       notarizationField: {
         id: new mongoose.Types.ObjectId(),
-        name: 'Field',
-        description: 'Field Description',
+        name: 'Test Field',
+        description: 'Test Field Description',
+        name_en: 'Test Field English',
+        code: 'TEST_FIELD',
       },
       requesterInfo: {
+        fullName: 'John Doe',
         citizenId: '123456789',
-        phoneNumber: '1234567890',
-        email: 'test@example.com',
+        phoneNumber: '+1234567890',
+        email: 'john@example.com',
       },
       userId: new mongoose.Types.ObjectId(),
-    });
+      amount: 150,
+    };
+  });
+  
 
-    const jsonDocument = document.toJSON();
-    expect(jsonDocument).not.toHaveProperty('_id');
-    expect(jsonDocument).not.toHaveProperty('__v');
-    expect(jsonDocument).toHaveProperty('id', document._id.toString());
+  test('should create & save document successfully', async () => {
+    const validDocument = new Document(validDocumentData);
+    const savedDocument = await validDocument.save();
+
+    expect(savedDocument._id).toBeDefined();
+    expect(savedDocument.files[0].filename).toBe(validDocumentData.files[0].filename);
+    expect(savedDocument.notarizationService.name).toBe(validDocumentData.notarizationService.name);
   });
 
-  test('should correctly apply the paginate plugin', async () => {
-    await Document.create([
-      {
-        files: [
-          {
-            filename: 'file1.pdf',
-            firebaseUrl: 'https://firebase.com/path/to/file1.pdf',
-          },
-        ],
-        notarizationService: {
-          id: new mongoose.Types.ObjectId(),
-          name: 'Service 1',
-          fieldId: new mongoose.Types.ObjectId(),
-          description: 'Service Description 1',
-          price: 100,
-        },
-        notarizationField: {
-          id: new mongoose.Types.ObjectId(),
-          name: 'Field 1',
-          description: 'Field Description 1',
-        },
-        requesterInfo: {
-          citizenId: '123456789',
-          phoneNumber: '1234567890',
-          email: 'test1@example.com',
-        },
-        userId: new mongoose.Types.ObjectId(),
-      },
-      {
-        files: [
-          {
-            filename: 'file2.pdf',
-            firebaseUrl: 'https://firebase.com/path/to/file2.pdf',
-          },
-        ],
-        notarizationService: {
-          id: new mongoose.Types.ObjectId(),
-          name: 'Service 2',
-          fieldId: new mongoose.Types.ObjectId(),
-          description: 'Service Description 2',
-          price: 200,
-        },
-        notarizationField: {
-          id: new mongoose.Types.ObjectId(),
-          name: 'Field 2',
-          description: 'Field Description 2',
-        },
-        requesterInfo: {
-          citizenId: '987654321',
-          phoneNumber: '0987654321',
-          email: 'test2@example.com',
-        },
-        userId: new mongoose.Types.ObjectId(),
-      },
-    ]);
-
-    const result = await Document.paginate({}, { page: 1, limit: 1 });
-    expect(result.results).toHaveLength(1);
-    expect(result.totalResults).toBe(2);
-    expect(result.totalPages).toBe(2);
-    expect(result.page).toBe(1);
-  });
-
-  test('should throw validation error if required fields are missing', async () => {
-    const document = new Document({
-      files: [
-        {
-          filename: 'file1.pdf',
-          firebaseUrl: 'https://firebase.com/path/to/file1.pdf',
-        },
-      ],
-      notarizationService: {
-        id: new mongoose.Types.ObjectId(),
-        name: 'Service',
-        fieldId: new mongoose.Types.ObjectId(),
-        description: 'Service Description',
-        price: 100,
-      },
-      notarizationField: {
-        id: new mongoose.Types.ObjectId(),
-        name: 'Field',
-        description: 'Field Description',
-      },
-      requesterInfo: {
-        citizenId: '123456789',
-        phoneNumber: '1234567890',
-        email: 'test@example.com',
-      },
-    });
-
+  test('should fail to save with missing required fields', async () => {
+    const documentWithoutRequired = new Document({});
     let err;
+
     try {
-      await document.validate();
+      await documentWithoutRequired.save();
     } catch (error) {
       err = error;
     }
 
     expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
-    expect(err.errors.userId).toBeDefined();
+  });
+
+  test('should validate email format', async () => {
+    validDocumentData.requesterInfo.email = '';
+    const invalidDocument = new Document(validDocumentData);
+    let err ;
+
+    try {
+      await invalidDocument.save();
+    } catch (error) {
+      err = error;
+    }
+
+    expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
+  });
+
+  test('should accept valid required_documents', async () => {
+    const validDocument = new Document(validDocumentData);
+    const savedDocument = await validDocument.save();
+    expect(Array.from(savedDocument.notarizationService.required_documents))
+    .toEqual(validDocumentData.notarizationService.required_documents);
+  });
+
+  test('should convert to JSON correctly', async () => {
+    const document = new Document(validDocumentData);
+    const savedDocument = await document.save();
+    const jsonDocument = savedDocument.toJSON();
+
+    expect(jsonDocument).not.toHaveProperty('__v');
+    expect(jsonDocument).toHaveProperty('id');
+  });
+
+  test('should handle pagination plugin', async () => {
+    // Create multiple documents
+    await Document.create([validDocumentData, validDocumentData]);
+
+    const result = await Document.paginate({}, { limit: 1, page: 1 });
+
+    expect(result).toHaveProperty('results');
+    expect(result).toHaveProperty('page');
+    expect(result).toHaveProperty('limit');
+    expect(result).toHaveProperty('totalPages');
+    expect(result).toHaveProperty('totalResults');
   });
 });

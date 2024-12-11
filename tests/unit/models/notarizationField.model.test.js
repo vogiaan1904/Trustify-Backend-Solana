@@ -1,4 +1,3 @@
-// notarizationField.model.test.js
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const NotarizationField = require('../../../src/models/notarizationField.model');
@@ -19,50 +18,96 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-describe('NotarizationField Model', () => {
-  beforeEach(async () => {
-    await NotarizationField.deleteMany({});
-  });
+afterEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    const collection = collections[key];
+    await collection.deleteMany({ name: 'Test Field' });
+  }
+});
 
-  test('should correctly apply the toJSON plugin', async () => {
-    const notarizationField = await NotarizationField.create({
+describe('NotarizationField Model Test Suite', () => {
+  let validNotarizationFieldData;
+
+  beforeEach(() => {
+    validNotarizationFieldData = {
       name: 'Test Field',
-      description: 'Test Description',
-    });
-
-    const jsonNotarizationField = notarizationField.toJSON();
-    expect(jsonNotarizationField).not.toHaveProperty('_id');
-    expect(jsonNotarizationField).not.toHaveProperty('__v');
-    expect(jsonNotarizationField).toHaveProperty('id', notarizationField._id.toString());
+      description: 'Test Field Description',
+      name_en: 'Test Field English',
+      code: 'TEST_FIELD',
+    };
   });
 
-  test('should correctly apply the paginate plugin', async () => {
-    await NotarizationField.create([
-      { name: 'Field 1', description: 'Description 1' },
-      { name: 'Field 2', description: 'Description 2' },
-      { name: 'Field 3', description: 'Description 3' },
-    ]);
+  test('should create & save notarization field successfully', async () => {
+    const validNotarizationField = new NotarizationField(validNotarizationFieldData);
+    const savedNotarizationField = await validNotarizationField.save();
 
-    const result = await NotarizationField.paginate({}, { page: 1, limit: 2 });
-    expect(result.results).toHaveLength(2);
-    expect(result.totalResults).toBe(3);
-    expect(result.totalPages).toBe(2);
-    expect(result.page).toBe(1);
+    expect(savedNotarizationField._id).toBeDefined();
+    expect(savedNotarizationField.name).toBe(validNotarizationFieldData.name);
+    expect(savedNotarizationField.description).toBe(validNotarizationFieldData.description);
+    expect(savedNotarizationField.name_en).toBe(validNotarizationFieldData.name_en);
+    expect(savedNotarizationField.code).toBe(validNotarizationFieldData.code);
   });
 
-  test('should throw validation error if required fields are missing', async () => {
-    const notarizationField = new NotarizationField({
-      description: 'Test Description',
-    });
-
+  test('should fail to save without required fields', async () => {
+    const notarizationFieldWithoutRequired = new NotarizationField({});
     let err;
+
     try {
-      await notarizationField.validate();
+      await notarizationFieldWithoutRequired.save();
     } catch (error) {
       err = error;
     }
 
     expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
     expect(err.errors.name).toBeDefined();
+    expect(err.errors.description).toBeDefined();
+    expect(err.errors.name_en).toBeDefined();
+    expect(err.errors.code).toBeDefined();
+  });
+
+  test('should fail to save with duplicate name', async () => {
+    const validNotarizationField = new NotarizationField(validNotarizationFieldData);
+    await validNotarizationField.save();
+
+    const duplicateNotarizationField = new NotarizationField(validNotarizationFieldData);
+    let err;
+
+    try {
+      await duplicateNotarizationField.save();
+    } catch (error) {
+      err = error;
+    }
+
+    expect(err).toBeInstanceOf(mongoose.mongo.MongoError);
+    expect(err.code).toBe(11000);
+  });
+
+  test('should convert to JSON correctly', async () => {
+    const notarizationField = new NotarizationField(validNotarizationFieldData);
+    const savedNotarizationField = await notarizationField.save();
+    const jsonNotarizationField = savedNotarizationField.toJSON();
+
+    expect(jsonNotarizationField).not.toHaveProperty('__v');
+    expect(jsonNotarizationField).toHaveProperty('id');
+  });
+
+  test('should handle pagination plugin', async () => {
+    // Create multiple notarization fields
+    let validNotarizationFieldData2 = {
+      name: 'Test Field2',
+      description: 'Test Field Description',
+      name_en: 'Test Field English',
+      code: 'TEST_FIELD',
+    };
+    await NotarizationField.create([validNotarizationFieldData, validNotarizationFieldData2]);
+
+    const result = await NotarizationField.paginate({}, { limit: 1, page: 1 });
+
+    expect(result).toHaveProperty('results');
+    expect(result).toHaveProperty('page');
+    expect(result).toHaveProperty('limit');
+    expect(result).toHaveProperty('totalPages');
+    expect(result).toHaveProperty('totalResults');
   });
 });

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { toJSON, paginate } = require('./plugins');
-const { required } = require('joi');
+//const { required } = require('joi');
 
 const notarizationServiceSchema = new mongoose.Schema(
   {
