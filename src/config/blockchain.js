@@ -111,12 +111,11 @@ const getTransactionData = async (transactionHash) => {
       tokenURI,
       blockNumber: transaction.blockNumber,
       timestamp: block.timestamp,
-      age: {
-        seconds: ageInSeconds,
-        minutes: ageInMinutes,
-        hours: ageInHours,
-        days: ageInDays,
-      },
+      contractAddress: process.env.CONTRACT_ADDRESS,
+      ageInSeconds,
+      ageInMinutes,
+      ageInHours,
+      ageInDays,
     };
   } catch (error) {
     console.error('Error fetching transaction data:', error);

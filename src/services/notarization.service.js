@@ -8,7 +8,8 @@ const { bucket, downloadFile } = require('../config/firebase');
 const RequestSignature = require('../models/requestSignature.model');
 const { payOS } = require('../config/payos');
 const Payment = require('../models/payment.model');
-const { uploadToIPFS, mintDocumentNFT } = require('../config/blockchain');
+const { uploadToIPFS, mintDocumentNFT, getTransactionData } = require('../config/blockchain');
+const userWalletService = require('./userWallet.service');
 
 const generateOrderCode = () => {
   const MAX_SAFE_INTEGER = 9007199254740991;
@@ -639,11 +640,18 @@ const approveSignatureByNotary = async (documentId, userId) => {
 
         // Mint NFT
         const nftData = await mintDocumentNFT(ipfsUrl);
+        const transactionData = await getTransactionData(nftData.transactionHash);
 
         // Update output file with transaction details
-        outputFile.transactionHash = nftData.transactionHash;
-        // outputFile.tokenId = nftData.tokenId;
-        // outputFile.tokenURI = ipfsUrl;
+        outputFile.transactionHash = transactionData.transactionHash;
+
+        await userWalletService.addNFTToWallet(userId, {
+          transactionHash: transactionData.transactionHash,
+          amount: document.amount,
+          tokenId: transactionData.tokenId,
+          tokenURI: transactionData.tokenURI,
+          contractAddress: transactionData.contractAddress,
+        });
       }
 
       // Save updated document
