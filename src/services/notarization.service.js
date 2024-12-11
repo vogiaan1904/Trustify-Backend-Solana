@@ -631,7 +631,7 @@ const approveSignatureByNotary = async (documentId, userId) => {
     }
 
     // Mint NFTs for output files
-    if (document.output && document.output.length > 0) {
+    if (document.output && Array.isArray(document.output) && document.output.length > 0) {
       for (const outputFile of document.output) {
         // Download file from storage
         const fileBuffer = await downloadFile(outputFile.firebaseUrl);
@@ -645,7 +645,7 @@ const approveSignatureByNotary = async (documentId, userId) => {
         // Update output file with transaction details
         outputFile.transactionHash = transactionData.transactionHash;
 
-        await userWalletService.addNFTToWallet(userId, {
+        await userWalletService.addNFTToWallet(document.userId, {
           transactionHash: transactionData.transactionHash,
           amount: document.amount,
           tokenId: transactionData.tokenId,
@@ -665,7 +665,7 @@ const approveSignatureByNotary = async (documentId, userId) => {
       description: `${document._id}`,
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
-      userId,
+      userId: document.userId,
       documentId,
       serviceId: document.notarizationService.id,
       fieldId: document.notarizationField.id,
