@@ -87,9 +87,20 @@ const findBySessionId = async (sessionId) => {
 };
 
 const createSession = async (sessionBody) => {
-  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, createdBy } = sessionBody;
+  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, createdBy, amount } =
+    sessionBody;
 
-  if (!sessionName || !notaryField || !notaryService || !startTime || !startDate || !endTime || !endDate || !users) {
+  if (
+    !sessionName ||
+    !notaryField ||
+    !notaryService ||
+    !startTime ||
+    !startDate ||
+    !endTime ||
+    !endDate ||
+    !users ||
+    !amount
+  ) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
 
@@ -170,6 +181,7 @@ const createSession = async (sessionBody) => {
       endDate,
       users: usersWithIds,
       createdBy,
+      amount,
       status: 'scheduled',
       createdAt: new Date(),
     };
@@ -617,13 +629,14 @@ const getTotalSessions = async (status) => {
     processing: () => SessionStatusTracking.countDocuments({ status: 'processing' }),
     readyToSign: () =>
       RequestSessionSignature.countDocuments({
-        'approvalStatus.notary.approved': true,
+        'approvalStatus.notary.approved': false,
         'approvalStatus.user.approved': true,
       }),
     pendingSignature: () =>
       RequestSessionSignature.countDocuments({
         $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
       }),
+    default: () => Session.countDocuments(),
   };
 
   return countQueries[status]();
@@ -851,7 +864,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedback, f
   }
 };
 
-const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {
+const approveSignatureSessionByUser = async (sessionId, signatureImage) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
@@ -863,34 +876,21 @@ const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) 
       throw new ApiError(httpStatus.CONFLICT, 'Session is not ready for digital signature');
     }
 
-    let requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+    const requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
 
     if (!requestSessionSignature) {
-      if (!signatureImage || signatureImage.length === 0) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No signature image provided');
-      }
-
-      const newRequestSessionSignature = new RequestSessionSignature({
-        sessionId,
-        amount,
-        signatureImage,
-        approvalStatus: {
-          secretary: {
-            approved: false,
-            approvedAt: null,
-          },
-          user: {
-            approved: true,
-            approvedAt: new Date(),
-          },
-        },
-      });
-
-      await newRequestSessionSignature.save();
-      requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the document yet');
     }
 
-    requestSessionSignature.signatureImage = signatureImage || requestSessionSignature.signatureImage;
+    if (requestSessionSignature.approvalStatus.user.approved) {
+      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has already approved the document');
+    }
+
+    requestSessionSignature.signatureImage = signatureImage;
+    requestSessionSignature.approvalStatus.user = {
+      approved: true,
+      approvedAt: new Date(),
+    };
 
     await requestSessionSignature.save();
 

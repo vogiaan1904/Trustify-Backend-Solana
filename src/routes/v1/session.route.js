@@ -161,6 +161,10 @@ router.post(
  *                 format: date
  *                 description: End date of the session
  *                 example: "2024-10-10"
+ *               amount:
+ *                 type: number
+ *                 description: Amount of the session
+ *                 example: 10
  *               users:
  *                 type: array
  *                 items:
@@ -179,6 +183,7 @@ router.post(
  *               - endTime
  *               - endDate
  *               - users
+ *               - amount
  *     responses:
  *       "201":
  *         description: Session created successfully
@@ -1258,9 +1263,6 @@ router.post(
  *               sessionId:
  *                 type: string
  *                 description: ID of the session to approve
- *               amount:
- *                 type: number
- *                 description: Amount of the session to approve
  *               signatureImage:
  *                 type: string
  *                 format: binary

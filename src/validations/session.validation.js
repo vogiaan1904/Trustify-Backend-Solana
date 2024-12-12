@@ -21,6 +21,7 @@ const createSession = {
         })
       )
       .required(),
+    amount: Joi.number().required(),
     createdBy: Joi.string(),
   }),
 };
@@ -99,7 +100,7 @@ const forwardSessionStatus = {
 const approveSignatureSessionByUser = {
   body: Joi.object().keys({
     sessionId: Joi.string().required(),
-    amount: Joi.number().required(),
+    signatureImage: Joi.string().allow('', null).optional(),
   }),
 };
 

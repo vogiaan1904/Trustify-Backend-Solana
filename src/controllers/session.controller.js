@@ -5,7 +5,7 @@ const { sessionService, emailService } = require('../services');
 const { addUserToSession: addUserToSessionValidation } = require('../validations/session.validation');
 
 const createSession = catchAsync(async (req, res) => {
-  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users } = req.body;
+  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, amount } = req.body;
   const createdBy = req.user.id;
   await sessionService.validateEmails(users.map((u) => u.email));
   const [hours, minutes] = startTime.split(':').map(Number);
@@ -23,6 +23,7 @@ const createSession = catchAsync(async (req, res) => {
     endTime,
     endDate: endDateTime,
     users,
+    amount,
     createdBy,
   });
   await Promise.all(session.users.map((userItem) => emailService.sendInvitationEmail(userItem.email, session._id)));
@@ -135,9 +136,9 @@ const forwardSessionStatus = catchAsync(async (req, res) => {
 });
 
 const approveSignatureSessionByUser = catchAsync(async (req, res) => {
-  const { sessionId, amount } = req.body;
-  const signatureImage = req.file.originalname;
-  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, amount, signatureImage);
+  const { sessionId } = req.body;
+  const signatureImage = req.file ? req.file.originalname : null;
+  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, signatureImage);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 

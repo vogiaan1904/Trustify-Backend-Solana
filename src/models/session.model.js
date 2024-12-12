@@ -46,6 +46,10 @@ const sessionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
+  amount: {
+    type: Number,
+    required: true,
+  },
   files: {
     type: [
       {
