@@ -96,7 +96,7 @@ const approveSignatureSessionByUser = {
   }),
 };
 
-const approveSignatureSessionBySecretary = {
+const approveSignatureSessionByNotary = {
   body: Joi.object().keys({
     sessionId: Joi.string().required(),
   }),
@@ -113,5 +113,5 @@ module.exports = {
   uploadSessionDocument,
   forwardSessionStatus,
   approveSignatureSessionByUser,
-  approveSignatureSessionBySecretary,
+  approveSignatureSessionByNotary,
 };

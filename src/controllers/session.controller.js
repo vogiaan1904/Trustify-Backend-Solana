@@ -113,18 +113,24 @@ const getSessionStatus = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(sessionStatusTracking);
 });
 
-const getSessionByRole = catchAsync(async (req, res) => {
-  const { user } = req;
-  const sessions = await sessionService.getSessionByRole(user.role);
-  res.status(httpStatus.OK).send(sessions);
+const getSessionsByStatus = catchAsync(async (req, res) => {
+  const filter = pick(req.query, ['status']);
+  const options = pick(req.query, ['limit', 'page']);
+
+  const result = await sessionService.getSessionsByStatus({
+    ...filter,
+    ...options,
+  });
+
+  res.status(httpStatus.OK).send(result);
 });
 
 const forwardSessionStatus = catchAsync(async (req, res) => {
   const { sessionId } = req.params;
-  const { action, feedBack } = req.body;
+  const { action, feedBack, files } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack);
+  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack, files);
   res.status(httpStatus.OK).send(updatedStatus);
 });
 
@@ -135,8 +141,8 @@ const approveSignatureSessionByUser = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 
-const approveSignatureSessionBySecretary = catchAsync(async (req, res) => {
-  const requestApproved = await sessionService.approveSignatureSessionBySecretary(req.body.sessionId, req.user.id);
+const approveSignatureSessionByNotary = catchAsync(async (req, res) => {
+  const requestApproved = await sessionService.approveSignatureSessionByNotary(req.body.sessionId, req.user.id);
   res.status(httpStatus.OK).send(requestApproved);
 });
 
@@ -154,8 +160,8 @@ module.exports = {
   uploadSessionDocument,
   sendSessionForNotarization,
   getSessionStatus,
-  getSessionByRole,
+  getSessionsByStatus,
   forwardSessionStatus,
   approveSignatureSessionByUser,
-  approveSignatureSessionBySecretary,
+  approveSignatureSessionByNotary,
 };
