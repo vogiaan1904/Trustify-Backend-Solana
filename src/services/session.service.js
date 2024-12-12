@@ -908,6 +908,9 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
     }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
+    }
 
     const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
 
@@ -917,11 +920,11 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
 
     const requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
     if (!requestSessionSignature) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the session yet');
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found');
     }
 
     if (!requestSessionSignature.approvalStatus.user.approved) {
-      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has not approved the session yet');
+      throw new ApiError(httpStatus.CONFLICT, 'User has not approved the session yet');
     }
 
     const session = await Session.findById(sessionId);
@@ -933,36 +936,36 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already been paid');
     }
 
-    // if (document.output && document.output.length > 0) {
-    //   for (const outputFile of document.output) {
-    //     // Download file from storage
-    //     const fileBuffer = await downloadFile(outputFile.firebaseUrl);
-    //     // Upload to IPFS
-    //     const ipfsUrl = await uploadToIPFS(fileBuffer, outputFile.filename);
+    if (session.output && Array.isArray(session.output) && session.output.length > 0) {
+      for (const outputFile of session.output) {
+        // Download file from storage
+        const fileBuffer = await downloadFile(outputFile.firebaseUrl);
+        // Upload to IPFS
+        const ipfsUrl = await uploadToIPFS(fileBuffer, outputFile.filename);
 
-    //     // Mint NFT
-    //     const nftData = await mintDocumentNFT(ipfsUrl);
-    //     const transactionData = await getTransactionData(nftData.transactionHash);
+        // Mint NFT
+        const nftData = await mintDocumentNFT(ipfsUrl);
+        const transactionData = await getTransactionData(nftData.transactionHash);
 
-    //     // Update output file with transaction details
-    //     outputFile.transactionHash = transactionData.transactionHash;
+        // Update output file with transaction details
+        outputFile.transactionHash = transactionData.transactionHash;
+        console.log(session.createdBy);
+        await userWalletService.addNFTToWallet(session.createdBy, {
+          transactionHash: transactionData.transactionHash,
+          amount: session.amount,
+          tokenId: transactionData.tokenId,
+          tokenURI: transactionData.tokenURI,
+          contractAddress: transactionData.contractAddress,
+        });
+      }
 
-    //     await userWalletService.addNFTToWallet(userId, {
-    //       transactionHash: transactionData.transactionHash,
-    //       amount: document.amount,
-    //       tokenId: transactionData.tokenId,
-    //       tokenURI: transactionData.tokenURI,
-    //       contractAddress: transactionData.contractAddress,
-    //     });
-    //   }
-
-    //   // Save updated document
-    //   await document.save();
-    // }
+      // Save updated document
+      await session.save();
+    }
 
     const payment = new Payment({
       orderCode: generateOrderCode(),
-      amount: session.notaryService.price * requestSessionSignature.amount,
+      amount: session.notaryService.price * session.amount,
       description: `Session: ${sessionId.toString().slice(-15)}`,
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
@@ -985,13 +988,10 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
     await payment.save();
 
-    console.log(paymentLinkResponse);
-
     session.payment = payment._id;
     session.checkoutUrl = paymentLinkResponse.checkoutUrl;
     session.orderCode = payment.orderCode;
     await session.save();
-    console.log(session);
 
     await SessionStatusTracking.updateOne(
       { sessionId },
@@ -1008,7 +1008,7 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
       afterStatus: 'completed',
     });
 
-    requestSessionSignature.approvalStatus.secretary = {
+    requestSessionSignature.approvalStatus.notary = {
       approved: true,
       approvedAt: new Date(),
     };
@@ -1018,18 +1018,18 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     await approveSessionHistory.save();
     const user = await userService.getUserById(userId);
 
-    await emailService.sendPaymentEmail(user.email, session._id, paymentLinkResponse.checkoutUrl);
+    await emailService.sendPaymentEmail(user.email, session._id, paymentLinkResponse);
 
     return {
-      message: 'Secretary approved and signed the session successfully',
+      message: 'Notary approved and signed the session successfully',
       sessionId,
     };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve signature by secretary:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by secretary');
+    console.error('Error approve signature by notary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by notary');
   }
 };
 
