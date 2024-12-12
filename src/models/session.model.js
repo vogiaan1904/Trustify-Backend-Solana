@@ -71,6 +71,30 @@ const sessionSchema = new mongoose.Schema({
     ],
     required: false,
   },
+  output: [
+    {
+      filename: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      firebaseUrl: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      transactionHash: {
+        type: String,
+        required: false,
+        default: null,
+      },
+      uploadedAt: {
+        type: Date,
+        required: true,
+        default: Date.now,
+      },
+    },
+  ],
 });
 
 sessionSchema.plugin(toJSON);

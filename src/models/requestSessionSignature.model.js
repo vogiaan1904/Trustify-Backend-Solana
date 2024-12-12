@@ -10,7 +10,6 @@ const requestSessionSignatureSchema = new mongoose.Schema(
     },
     signatureImage: {
       type: String,
-      required: true,
     },
     approvalStatus: {
       notary: {

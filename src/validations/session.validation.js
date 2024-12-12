@@ -84,8 +84,15 @@ const forwardSessionStatus = {
     userId: Joi.string().required(),
   }),
   body: Joi.object().keys({
-    action: Joi.string().required(),
-    feedBack: Joi.string(),
+    action: Joi.string().valid('accept', 'reject').required(),
+    feedback: Joi.string()
+      .allow('')
+      .when('action', {
+        is: 'reject',
+        then: Joi.string().min(1).required(),
+        otherwise: Joi.optional(),
+      }),
+    files: Joi.array().items(Joi.object()).optional(),
   }),
 };
 

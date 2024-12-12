@@ -712,7 +712,7 @@ const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
   }
 };
 
-const forwardSessionStatus = async (sessionId, action, role, userId, feedBack, files) => {
+const forwardSessionStatus = async (sessionId, action, role, userId, feedback, files) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
@@ -772,12 +772,12 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack, f
       }
 
       newStatus = validStatuses[currentStatusIndex + 1];
-
+      console.log(feedback);
       if (!newStatus) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already reached final status');
       }
     } else if (action === 'reject') {
-      if (!feedBack) {
+      if (!feedback) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Feedback is required for rejection');
       }
       newStatus = 'rejected';
@@ -814,7 +814,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack, f
     const updateData = {
       status: newStatus,
       updatedAt: new Date(),
-      ...(feedBack && { feedBack }),
+      ...(feedback && { feedback }),
     };
 
     const email = await Session.findOne({ _id: sessionId }, 'users email createdBy');
@@ -829,7 +829,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack, f
       userEmails.push(creator.email);
     }
 
-    await emailService.sendDocumentStatusUpdateEmail(userEmails, sessionId, currentStatus.status, newStatus, feedBack);
+    await emailService.sendDocumentStatusUpdateEmail(userEmails, sessionId, currentStatus.status, newStatus, feedback);
 
     const result = await SessionStatusTracking.updateOne({ sessionId }, updateData);
 

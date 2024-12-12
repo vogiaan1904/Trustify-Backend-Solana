@@ -127,10 +127,10 @@ const getSessionsByStatus = catchAsync(async (req, res) => {
 
 const forwardSessionStatus = catchAsync(async (req, res) => {
   const { sessionId } = req.params;
-  const { action, feedBack, files } = req.body;
+  const { action, feedback, files } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack, files);
+  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedback, files);
   res.status(httpStatus.OK).send(updatedStatus);
 });
 
