@@ -1,9 +1,3 @@
-const setupTestDB = require('../../utils/setupTestDB');
-const mockFirebase = require('./firebase.mock');
-mockFirebase();
-setupTestDB();
-const request = require('supertest');
-const express = require('express');
 const httpStatus = require('http-status');
 const { roleService } = require('../../../src/services');
 const roleController = require('../../../src/controllers/role.controller');
@@ -12,89 +6,88 @@ const catchAsync = require('../../../src/utils/catchAsync');
 jest.mock('../../../src/services/role.service');
 jest.mock('../../../src/utils/catchAsync', () => (fn) => (req, res, next) => fn(req, res, next).catch(next));
 
-const app = express();
-app.use(express.json());
-app.post('/roles', roleController.createRole);
-app.get('/roles', roleController.getRoles);
-app.get('/roles/:roleId', roleController.getRole);
-app.put('/roles/:roleId', roleController.updateRole);
-app.delete('/roles/:roleId', roleController.deleteRole);
-
 describe('Role Controller', () => {
+  let req, res, next;
+
+  beforeEach(() => {
+    req = {
+      params: {},
+      body: {},
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+    next = jest.fn();
+  });
+
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('POST /roles', () => {
-    it('should create a new role', async () => {
-      const roleBody = { name: 'Admin' };
-      const role = { id: 'role-id', ...roleBody };
-
+  describe('createRole', () => {
+    it('should create a new role and return it', async () => {
+      const role = { id: 'roleId', name: 'Admin' };
+      req.body = { name: 'Admin' };
       roleService.createRole.mockResolvedValue(role);
 
-      const res = await request(app).post('/roles').send(roleBody);
+      await roleController.createRole(req, res, next);
 
-      expect(res.status).toBe(httpStatus.CREATED);
-      expect(res.body).toEqual(role);
-      expect(roleService.createRole).toHaveBeenCalledWith(roleBody);
+      expect(roleService.createRole).toHaveBeenCalledWith(req.body);
+      expect(res.status).toHaveBeenCalledWith(httpStatus.CREATED);
+      expect(res.send).toHaveBeenCalledWith(role);
     });
   });
 
-  describe('GET /roles', () => {
-    it('should return a list of roles', async () => {
-      const roles = [{ id: 'role-id', name: 'Admin' }];
-
+  describe('getRoles', () => {
+    it('should return all roles', async () => {
+      const roles = [{ id: 'roleId1', name: 'Admin' }, { id: 'roleId2', name: 'User' }];
       roleService.getRoles.mockResolvedValue(roles);
 
-      const res = await request(app).get('/roles').send();
+      await roleController.getRoles(req, res, next);
 
-      expect(res.status).toBe(httpStatus.OK);
-      expect(res.body).toEqual(roles);
       expect(roleService.getRoles).toHaveBeenCalled();
+      expect(res.send).toHaveBeenCalledWith(roles);
     });
   });
 
-  describe('GET /roles/:roleId', () => {
+  describe('getRole', () => {
     it('should return a role by ID', async () => {
-      const roleId = 'role-id';
-      const role = { id: roleId, name: 'Admin' };
-
+      const role = { id: 'roleId', name: 'Admin' };
+      req.params.roleId = 'roleId';
       roleService.getRole.mockResolvedValue(role);
 
-      const res = await request(app).get(`/roles/${roleId}`).send();
+      await roleController.getRole(req, res, next);
 
-      expect(res.status).toBe(httpStatus.OK);
-      expect(res.body).toEqual(role);
-      expect(roleService.getRole).toHaveBeenCalledWith(roleId);
+      expect(roleService.getRole).toHaveBeenCalledWith(req.params.roleId);
+      expect(res.send).toHaveBeenCalledWith(role);
     });
   });
 
-  describe('PUT /roles/:roleId', () => {
-    it('should update a role by ID', async () => {
-      const roleId = 'role-id';
-      const updateBody = { name: 'Super Admin' };
-      const role = { id: roleId, name: 'Super Admin' };
-
+  describe('updateRole', () => {
+    it('should update a role and return it', async () => {
+      const role = { id: 'roleId', name: 'Admin' };
+      req.params.roleId = 'roleId';
+      req.body = { name: 'Admin' };
       roleService.updateRole.mockResolvedValue(role);
 
-      const res = await request(app).put(`/roles/${roleId}`).send(updateBody);
+      await roleController.updateRole(req, res, next);
 
-      expect(res.status).toBe(httpStatus.OK);
-      expect(res.body).toEqual(role);
-      expect(roleService.updateRole).toHaveBeenCalledWith(roleId, updateBody);
+      expect(roleService.updateRole).toHaveBeenCalledWith(req.params.roleId, req.body);
+      expect(res.send).toHaveBeenCalledWith(role);
     });
   });
 
-  describe('DELETE /roles/:roleId', () => {
-    it('should delete a role by ID', async () => {
-      const roleId = 'role-id';
-
+  describe('deleteRole', () => {
+    it('should delete a role and return no content', async () => {
+      req.params.roleId = 'roleId';
       roleService.deleteRole.mockResolvedValue();
 
-      const res = await request(app).delete(`/roles/${roleId}`).send();
+      await roleController.deleteRole(req, res, next);
 
-      expect(res.status).toBe(httpStatus.NO_CONTENT);
-      expect(roleService.deleteRole).toHaveBeenCalledWith(roleId);
+      expect(roleService.deleteRole).toHaveBeenCalledWith(req.params.roleId);
+      expect(res.status).toHaveBeenCalledWith(httpStatus.NO_CONTENT);
+      expect(res.send).toHaveBeenCalled();
     });
   });
 });

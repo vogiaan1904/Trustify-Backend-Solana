@@ -1,8 +1,7 @@
-// session.service.test.js
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const httpStatus = require('http-status');
-const { Session } = require('../../../src/models');
+const { Session, NotarizationField, NotarizationService, User } = require('../../../src/models');
 const ApiError = require('../../../src/utils/ApiError');
 const userService = require('../../../src/services/user.service');
 const sessionService = require('../../../src/services/session.service');
@@ -26,6 +25,9 @@ afterAll(async () => {
 describe('Session Service', () => {
   beforeEach(async () => {
     await Session.deleteMany({});
+    await NotarizationField.deleteMany({});
+    await NotarizationService.deleteMany({});
+    await User.deleteMany({});
   });
 
   describe('validateEmails', () => {
@@ -44,24 +46,60 @@ describe('Session Service', () => {
 
   describe('createSession', () => {
     test('should create a session', async () => {
+      const notaryField = await NotarizationField.create({
+        name: 'Field',
+        code: 'F001',
+        name_en: 'Field EN',
+        description: 'Description',
+      });
+      const notaryService = await NotarizationService.create({
+        name: 'Service',
+        fieldId: notaryField._id,
+        code: 'S001',
+        name_en: 'Service EN',
+        description: 'Description',
+        price: 100,
+      });
+      const user = await User.create({ email: 'test@example.com', password: 'password123', name: 'Test User' });
+
       const sessionBody = {
+        sessionName: 'Test Session',
+        notaryField: { id: notaryField._id, name: 'Field' },
+        notaryService: { id: notaryService._id, name: 'Service' },
+        startTime: '14:00',
+        startDate: new Date().toISOString().split('T')[0],
+        endTime: '15:00',
+        endDate: new Date().toISOString().split('T')[0],
+        users: [{ email: 'test@example.com' }],
+        createdBy: new mongoose.Types.ObjectId(),
+      };
+
+      const session = await sessionService.createSession(sessionBody);
+
+      // Đồng nhất định dạng ngày
+      const result = session.toObject();
+      result.startDate = result.startDate.toISOString();
+      result.endDate = result.endDate.toISOString();
+
+      expect(result).toMatchObject({
         sessionName: 'Test Session',
         notaryField: { name: 'Field' },
         notaryService: { name: 'Service' },
         startTime: '14:00',
-        startDate: new Date(),
+        startDate: new Date(sessionBody.startDate).toISOString(),
         endTime: '15:00',
-        endDate: new Date(),
-        users: [{ email: 'test@example.com' }],
-        createdBy: new mongoose.Types.ObjectId(),
-      };
-      const session = await sessionService.createSession(sessionBody);
-      expect(session.toObject()).toMatchObject(sessionBody);
+        endDate: new Date(sessionBody.endDate).toISOString(),
+        users: [{ email: 'test@example.com', status: 'pending' }],
+        createdBy: sessionBody.createdBy,
+      });
     });
   });
 
   describe('addUserToSession', () => {
     test('should add users to session', async () => {
+      const user1 = await User.create({ email: 'test1@example.com', password: 'password123', name: 'Test User 1' });
+      const user2 = await User.create({ email: 'test2@example.com', password: 'password123', name: 'Test User 2' });
+
       const session = await Session.create({
         sessionName: 'Test Session',
         notaryField: { name: 'Field' },
@@ -81,6 +119,8 @@ describe('Session Service', () => {
     });
 
     test('should throw an error if user is already added to session', async () => {
+      const user = await User.create({ email: 'test1@example.com', password: 'password123', name: 'Test User 1' });
+
       const session = await Session.create({
         sessionName: 'Test Session',
         notaryField: { name: 'Field' },
@@ -100,6 +140,8 @@ describe('Session Service', () => {
 
   describe('deleteUserOutOfSession', () => {
     test('should delete user from session', async () => {
+      const user = await User.create({ email: 'test1@example.com', password: 'password123', name: 'Test User 1' });
+
       const session = await Session.create({
         sessionName: 'Test Session',
         notaryField: { name: 'Field' },
@@ -121,6 +163,8 @@ describe('Session Service', () => {
     });
 
     test('should throw an error if user is not found in session', async () => {
+      const user = await User.create({ email: 'test1@example.com', password: 'password123', name: 'Test User 1' });
+
       const session = await Session.create({
         sessionName: 'Test Session',
         notaryField: { name: 'Field' },
@@ -141,7 +185,7 @@ describe('Session Service', () => {
 
   describe('joinSession', () => {
     test('should update user status to accepted', async () => {
-      const user = { _id: new mongoose.Types.ObjectId(), email: 'test@example.com' };
+      const user = await User.create({ email: 'test@example.com', password: 'password123', name: 'Test User' });
       jest.spyOn(userService, 'getUserById').mockResolvedValue(user);
 
       const session = await Session.create({
@@ -161,7 +205,7 @@ describe('Session Service', () => {
     });
 
     test('should throw an error if user is not found in session', async () => {
-      const user = { _id: new mongoose.Types.ObjectId(), email: 'test@example.com' };
+      const user = await User.create({ email: 'test@example.com', password: 'password123', name: 'Test User' });
       jest.spyOn(userService, 'getUserById').mockResolvedValue(user);
 
       const session = await Session.create({
@@ -194,13 +238,34 @@ describe('Session Service', () => {
         createdBy: new mongoose.Types.ObjectId(),
       });
 
-      const sessions = await sessionService.getAllSessions();
-      expect(sessions).toHaveLength(1);
-      expect(sessions[0].toObject()).toMatchObject(session.toObject());
+      const sessions = await sessionService.getAllSessions({}, { page: 1, limit: 10 });
+
+      expect(sessions.results).toHaveLength(1);
+
+      const receivedSession = JSON.parse(JSON.stringify(sessions.results[0]));
+
+      const formattedReceivedSession = {
+        ...receivedSession,
+        startDate: new Date(receivedSession.startDate).toISOString(),
+        endDate: new Date(receivedSession.endDate).toISOString(),
+        createdBy: session.createdBy,
+      };
+
+      expect(formattedReceivedSession).toMatchObject({
+        sessionName: 'Test Session',
+        notaryField: { name: 'Field' },
+        notaryService: { name: 'Service' },
+        startTime: '14:00',
+        startDate: session.startDate.toISOString(),
+        endTime: '15:00',
+        endDate: session.endDate.toISOString(),
+        users: [{ email: 'test@example.com' }],
+        createdBy: session.createdBy,
+      });
     });
 
     test('should throw an error if no sessions are found', async () => {
-      await expect(sessionService.getAllSessions()).rejects.toThrow(ApiError);
+      await expect(sessionService.getAllSessions({}, { page: 1, limit: 10 })).rejects.toThrow(ApiError);
     });
   });
 

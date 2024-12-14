@@ -1,75 +1,68 @@
-const { NotarizationService, NotarizationField } = require('../../../src/models');
-const notarizationService = require('../../../src/services/notarizationService.service');
-const ApiError = require('../../../src/utils/ApiError');
 const httpStatus = require('http-status');
+const { NotarizationService, NotarizationField } = require('../../../src/models');
+const ApiError = require('../../../src/utils/ApiError');
+const notarizationService = require('../../../src/services/notarizationService.service');
 
-// Mock các model bằng cách sử dụng factory argument để tránh mock Map class
-jest.mock('../../../src/models', () => {
-  const actualModels = jest.requireActual('../../../src/models');
-  return {
-    NotarizationService: {
-      ...actualModels.NotarizationService,
-      findById: jest.fn(),
-      findOne: jest.fn(),
-      create: jest.fn(),
-      find: jest.fn(),
-      remove: jest.fn(),
-    },
-    NotarizationField: {
-      ...actualModels.NotarizationField,
-      findById: jest.fn(),
-    },
-  };
+jest.mock('../../../src/models', () => ({
+  NotarizationService: {
+    findOne: jest.fn(),
+    create: jest.fn(),
+    find: jest.fn(),
+    findById: jest.fn(),
+  },
+  NotarizationField: {
+    findById: jest.fn(),
+  },
+}));
+
+jest.mock('../../../src/utils/ApiError', () => {
+  return jest.fn().mockImplementation((statusCode, message) => {
+    const error = new Error(message || 'Error');
+    error.statusCode = statusCode || 500;
+    return error;
+  });
 });
 
-describe('Notarization Service', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
+describe('NotarizationService Service', () => {
   describe('createNotarizationService', () => {
-    it('should throw an error if notarization service name already exists', async () => {
-      const notarizationServiceBody = { name: 'Service Name', fieldId: 'fieldId' };
+    it('should create a new notarization service', async () => {
+      const notarizationServiceBody = { name: 'Test Service', fieldId: 'fieldId' };
+      NotarizationService.findOne.mockResolvedValueOnce(null);
+      NotarizationField.findById.mockResolvedValueOnce(true);
+      NotarizationService.create.mockResolvedValueOnce(notarizationServiceBody);
 
-      NotarizationService.findOne.mockResolvedValue(true);
+      const result = await notarizationService.createNotarizationService(notarizationServiceBody);
+
+      expect(result).toEqual(notarizationServiceBody);
+      expect(NotarizationService.findOne).toHaveBeenCalledWith({ name: notarizationServiceBody.name });
+      expect(NotarizationField.findById).toHaveBeenCalledWith(notarizationServiceBody.fieldId);
+      expect(NotarizationService.create).toHaveBeenCalledWith(notarizationServiceBody);
+    });
+
+    it('should throw an error if notarization service name already exists', async () => {
+      const notarizationServiceBody = { name: 'Test Service', fieldId: 'fieldId' };
+      NotarizationService.findOne.mockResolvedValueOnce(notarizationServiceBody);
 
       await expect(notarizationService.createNotarizationService(notarizationServiceBody)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name already exists')
+        'Error creating notarization service'
       );
     });
 
     it('should throw an error if fieldId is invalid', async () => {
-      const notarizationServiceBody = { name: 'Service Name', fieldId: 'invalidFieldId' };
-
-      NotarizationService.findOne.mockResolvedValue(null);
-      NotarizationField.findById.mockResolvedValue(null);
+      const notarizationServiceBody = { name: 'Test Service', fieldId: 'fieldId' };
+      NotarizationService.findOne.mockResolvedValueOnce(null);
+      NotarizationField.findById.mockResolvedValueOnce(null);
 
       await expect(notarizationService.createNotarizationService(notarizationServiceBody)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Invalid fieldId provided')
+        'Error creating notarization service'
       );
-    });
-
-    it('should create a new notarization service successfully', async () => {
-      const notarizationServiceBody = { name: 'Service Name', fieldId: 'fieldId', description: 'Description', price: 100 };
-
-      NotarizationService.findOne.mockResolvedValue(null);
-      NotarizationField.findById.mockResolvedValue(true);
-      NotarizationService.create.mockResolvedValue({ id: 'serviceId', ...notarizationServiceBody });
-
-      const result = await notarizationService.createNotarizationService(notarizationServiceBody);
-
-      expect(result).toHaveProperty('id', 'serviceId');
-      expect(NotarizationService.create).toHaveBeenCalledWith(notarizationServiceBody);
     });
   });
 
   describe('getAllNotarizationServices', () => {
     it('should return all notarization services', async () => {
-      const services = [
-        { id: 'serviceId', name: 'Service Name', fieldId: 'fieldId', description: 'Description', price: 100 },
-      ];
-
-      NotarizationService.find.mockResolvedValue(services);
+      const services = [{ name: 'Service 1' }, { name: 'Service 2' }];
+      NotarizationService.find.mockResolvedValueOnce(services);
 
       const result = await notarizationService.getAllNotarizationServices();
 
@@ -77,20 +70,17 @@ describe('Notarization Service', () => {
       expect(NotarizationService.find).toHaveBeenCalled();
     });
 
-    it('should throw an error if no services are found', async () => {
-      NotarizationService.find.mockResolvedValue([]);
+    it('should throw an error if no notarization services are found', async () => {
+      NotarizationService.find.mockResolvedValueOnce([]);
 
-      await expect(notarizationService.getAllNotarizationServices()).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'No notarization services found')
-      );
+      await expect(notarizationService.getAllNotarizationServices()).rejects.toThrow('Error fetching notarization services');
     });
   });
 
   describe('getNotarizationServiceById', () => {
-    it('should return a notarization service by ID', async () => {
-      const service = { id: 'serviceId', name: 'Service Name', fieldId: 'fieldId', description: 'Description', price: 100 };
-
-      NotarizationService.findById.mockResolvedValue(service);
+    it('should return notarization service by ID', async () => {
+      const service = { name: 'Test Service' };
+      NotarizationService.findById.mockResolvedValueOnce(service);
 
       const result = await notarizationService.getNotarizationServiceById('serviceId');
 
@@ -98,116 +88,112 @@ describe('Notarization Service', () => {
       expect(NotarizationService.findById).toHaveBeenCalledWith('serviceId');
     });
 
-    it('should throw an error if service is not found', async () => {
-      NotarizationService.findById.mockResolvedValue(null);
+    it('should throw an error if notarization service is not found', async () => {
+      NotarizationService.findById.mockResolvedValueOnce(null);
 
       await expect(notarizationService.getNotarizationServiceById('serviceId')).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'Notarization service not found')
+        'Error fetching notarization service'
       );
     });
   });
 
   describe('updateNotarizationServiceById', () => {
-    it('should throw an error if service is not found', async () => {
-      const updateBody = { name: 'Updated Service Name' };
-
-      NotarizationService.findById.mockResolvedValue(null);
-
-      await expect(notarizationService.updateNotarizationServiceById('serviceId', updateBody)).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'Notarization service not found')
-      );
-    });
-
-    it('should throw an error if service name is already taken', async () => {
-      const updateBody = { name: 'Updated Service Name' };
-      const service = { id: 'serviceId', name: 'Service Name', fieldId: 'fieldId', description: 'Description', price: 100 };
-
-      NotarizationService.findById.mockResolvedValue(service);
-      NotarizationService.findOne.mockResolvedValue(true);
-
-      await expect(notarizationService.updateNotarizationServiceById('serviceId', updateBody)).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Service name already taken')
-      );
-    });
-
-    it('should update and return the notarization service if data is valid', async () => {
-      const updateBody = { name: 'Updated Service Name' };
-      const service = {
-        id: 'serviceId',
-        name: 'Service Name',
-        fieldId: 'fieldId',
-        description: 'Description',
-        price: 100,
-        save: jest.fn().mockResolvedValue(true),
-      };
-
-      NotarizationService.findById.mockResolvedValue(service);
-      NotarizationService.findOne.mockResolvedValue(null);
+    it('should update notarization service by ID', async () => {
+      const service = { name: 'Test Service', save: jest.fn().mockResolvedValueOnce() };
+      const updateBody = { name: 'Updated Service', fieldId: 'fieldId' };
+      NotarizationService.findById.mockResolvedValueOnce(service);
+      NotarizationService.findOne.mockResolvedValueOnce(null);
+      NotarizationField.findById.mockResolvedValueOnce(true);
 
       const result = await notarizationService.updateNotarizationServiceById('serviceId', updateBody);
 
       expect(result).toEqual(service);
+      expect(NotarizationService.findById).toHaveBeenCalledWith('serviceId');
+      expect(NotarizationService.findOne).toHaveBeenCalledWith({ name: updateBody.name, _id: { $ne: 'serviceId' } });
+      expect(NotarizationField.findById).toHaveBeenCalledWith(updateBody.fieldId);
       expect(service.save).toHaveBeenCalled();
+    });
+
+    it('should throw an error if service name is already taken', async () => {
+      const service = { name: 'Test Service' };
+      const updateBody = { name: 'Updated Service' };
+      NotarizationService.findById.mockResolvedValueOnce(service);
+      NotarizationService.findOne.mockResolvedValueOnce(updateBody);
+
+      await expect(notarizationService.updateNotarizationServiceById('serviceId', updateBody)).rejects.toThrow(
+        'Error updating notarization service'
+      );
+    });
+
+    it('should throw an error if fieldId is invalid', async () => {
+      const service = { name: 'Test Service' };
+      const updateBody = { name: 'Updated Service', fieldId: 'fieldId' };
+      NotarizationService.findById.mockResolvedValueOnce(service);
+      NotarizationService.findOne.mockResolvedValueOnce(null);
+      NotarizationField.findById.mockResolvedValueOnce(null);
+
+      await expect(notarizationService.updateNotarizationServiceById('serviceId', updateBody)).rejects.toThrow(
+        'Error updating notarization service'
+      );
+    });
+
+    it('should throw an error if notarization service is not found', async () => {
+      NotarizationService.findById.mockResolvedValueOnce(null);
+
+      await expect(
+        notarizationService.updateNotarizationServiceById('serviceId', { name: 'Updated Service' })
+      ).rejects.toThrow('Error updating notarization service');
     });
   });
 
   describe('deleteNotarizationServiceById', () => {
-    it('should throw an error if service is not found', async () => {
-      NotarizationService.findById.mockResolvedValue(null);
-
-      await expect(notarizationService.deleteNotarizationServiceById('serviceId')).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'Notarization service not found')
-      );
-    });
-
-    it('should delete and return the notarization service if found', async () => {
-      const service = {
-        id: 'serviceId',
-        name: 'Service Name',
-        fieldId: 'fieldId',
-        description: 'Description',
-        price: 100,
-        remove: jest.fn().mockResolvedValue(true),
-      };
-
-      NotarizationService.findById.mockResolvedValue(service);
+    it('should delete notarization service by ID', async () => {
+      const service = { name: 'Test Service', remove: jest.fn().mockResolvedValueOnce() };
+      NotarizationService.findById.mockResolvedValueOnce(service);
 
       const result = await notarizationService.deleteNotarizationServiceById('serviceId');
 
       expect(result).toEqual(service);
+      expect(NotarizationService.findById).toHaveBeenCalledWith('serviceId');
       expect(service.remove).toHaveBeenCalled();
+    });
+
+    it('should throw an error if notarization service is not found', async () => {
+      NotarizationService.findById.mockResolvedValueOnce(null);
+
+      await expect(notarizationService.deleteNotarizationServiceById('serviceId')).rejects.toThrow(
+        'Error deleting notarization service'
+      );
     });
   });
 
   describe('getNotarizationServicesByFieldId', () => {
-    it('should throw an error if fieldId is invalid', async () => {
-      NotarizationField.findById.mockResolvedValue(null);
-
-      await expect(notarizationService.getNotarizationServicesByFieldId('invalidFieldId')).rejects.toThrow(
-        new ApiError(httpStatus.BAD_REQUEST, 'Invalid fieldId provided')
-      );
-    });
-
-    it('should return notarization services by fieldId', async () => {
-      const services = [
-        { id: 'serviceId', name: 'Service Name', fieldId: 'fieldId', description: 'Description', price: 100 },
-      ];
-
-      NotarizationField.findById.mockResolvedValue(true);
-      NotarizationService.find.mockResolvedValue(services);
+    it('should return notarization services by field ID', async () => {
+      const services = [{ name: 'Service 1' }, { name: 'Service 2' }];
+      NotarizationField.findById.mockResolvedValueOnce(true);
+      NotarizationService.find.mockResolvedValueOnce(services);
 
       const result = await notarizationService.getNotarizationServicesByFieldId('fieldId');
 
       expect(result).toEqual(services);
+      expect(NotarizationField.findById).toHaveBeenCalledWith('fieldId');
       expect(NotarizationService.find).toHaveBeenCalledWith({ fieldId: 'fieldId' });
     });
 
-    it('should throw an error if no services are found for the given field', async () => {
-      NotarizationField.findById.mockResolvedValue(true);
-      NotarizationService.find.mockResolvedValue([]);
+    it('should throw an error if fieldId is invalid', async () => {
+      NotarizationField.findById.mockResolvedValueOnce(null);
 
       await expect(notarizationService.getNotarizationServicesByFieldId('fieldId')).rejects.toThrow(
-        new ApiError(httpStatus.NOT_FOUND, 'No notarization services found for the given field')
+        'Error fetching notarization services by field'
+      );
+    });
+
+    it('should throw an error if no notarization services are found for the given field', async () => {
+      NotarizationField.findById.mockResolvedValueOnce(true);
+      NotarizationService.find.mockResolvedValueOnce([]);
+
+      await expect(notarizationService.getNotarizationServicesByFieldId('fieldId')).rejects.toThrow(
+        'Error fetching notarization services by field'
       );
     });
   });

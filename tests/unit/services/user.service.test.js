@@ -41,7 +41,7 @@ describe('User Service', () => {
     test('should return paginated users', async () => {
       const filter = {};
       const options = { limit: 10, page: 1 };
-      const paginatedUsers = { docs: [], totalDocs: 0, limit: 10, page: 1, totalPages: 1 };
+      const paginatedUsers = { results: [], totalDocs: 0, limit: 10, page: 1, totalPages: 1 };
 
       User.paginate.mockResolvedValue(paginatedUsers);
 
