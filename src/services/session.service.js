@@ -434,10 +434,6 @@ const getSessionsByUserId = async (userId) => {
 
     const allSessions = [...sessionsCreated, ...joinedSessions];
 
-    if (allSessions.length === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
-    }
-
     const sessionCreators = await Promise.all(
       allSessions.map(async (session) => {
         const creator = await userService.getUserById(session.createdBy);
