@@ -608,6 +608,9 @@ const approveSignatureByNotary = async (documentId, userId) => {
 
     // Check document status
     const statusTracking = await StatusTracking.findOne({ documentId });
+    if (!statusTracking) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Status tracking not found');
+    }
     if (statusTracking.status !== 'digitalSignature') {
       throw new ApiError(httpStatus.CONFLICT, 'Document is not ready for digital signature');
     }
@@ -631,31 +634,61 @@ const approveSignatureByNotary = async (documentId, userId) => {
     }
 
     // Mint NFTs for output files
-    if (document.output && Array.isArray(document.output) && document.output.length > 0) {
-      for (const outputFile of document.output) {
-        // Download file from storage
-        const fileBuffer = await downloadFile(outputFile.firebaseUrl);
-        // Upload to IPFS
-        const ipfsUrl = await uploadToIPFS(fileBuffer, outputFile.filename);
+    if (document.output && Array.isArray(document.output)) {
+      console.log(`document.output exists and is an array with length: ${document.output.length}`);
+      if (document.output.length > 0) {
+        for (const outputFile of document.output) {
+          if (!outputFile.filename) {
+            throw new ApiError(httpStatus.BAD_REQUEST, 'Output file filename is missing');
+          }
+          // Download file from storage
+          const fileBuffer = await downloadFile(outputFile.firebaseUrl);
+          if (!fileBuffer) {
+            throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to download file');
+          }
+          // Upload to IPFS
+          const ipfsUrl = await uploadToIPFS(fileBuffer, outputFile.filename);
+          if (!ipfsUrl) {
+            throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload to IPFS');
+          }
 
-        // Mint NFT
-        const nftData = await mintDocumentNFT(ipfsUrl);
-        const transactionData = await getTransactionData(nftData.transactionHash);
+          // Mint NFT
+          const nftData = await mintDocumentNFT(ipfsUrl);
+          if (!nftData || !nftData.transactionHash) {
+            throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to mint NFT');
+          }
+          const transactionData = await getTransactionData(nftData.transactionHash);
+          if (!transactionData || !transactionData.transactionHash) {
+            throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve transaction data');
+          }
 
-        // Update output file with transaction details
-        outputFile.transactionHash = transactionData.transactionHash;
+          // Update output file with transaction details
+          outputFile.transactionHash = transactionData.transactionHash;
 
-        await userWalletService.addNFTToWallet(document.userId, {
-          transactionHash: transactionData.transactionHash,
-          amount: document.amount,
-          tokenId: transactionData.tokenId,
-          tokenURI: transactionData.tokenURI,
-          contractAddress: transactionData.contractAddress,
-        });
+          console.log('Adding NFT to wallet with data:', {
+            transactionHash: transactionData.transactionHash,
+            filename: outputFile.filename,
+            amount: document.amount,
+            tokenId: transactionData.tokenId,
+            tokenURI: transactionData.tokenURI,
+            contractAddress: transactionData.contractAddress,
+          });
+
+          await userWalletService.addNFTToWallet(document.userId, {
+            transactionHash: transactionData.transactionHash,
+            filename: outputFile.filename,
+            amount: document.amount,
+            tokenId: transactionData.tokenId,
+            tokenURI: transactionData.tokenURI,
+            contractAddress: transactionData.contractAddress,
+          });
+        }
+
+        // Save updated document
+        await document.save();
       }
-
-      // Save updated document
-      await document.save();
+    } else {
+      console.warn('document.output is undefined or not an array');
     }
 
     // Create payment
@@ -685,20 +718,10 @@ const approveSignatureByNotary = async (documentId, userId) => {
     payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
     await payment.save();
 
-    // Update document with payment details
-    document.payment = payment._id;
-    document.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    document.orderCode = payment.orderCode;
-    await document.save();
-
     // Update status tracking
-    await StatusTracking.updateOne(
-      { documentId },
-      {
-        status: 'completed',
-        updatedAt: new Date(),
-      }
-    );
+    statusTracking.status = 'completed';
+    statusTracking.updatedAt = new Date();
+    await statusTracking.save();
 
     // Record approval history
     const approveHistory = new ApproveHistory({
@@ -714,15 +737,19 @@ const approveSignatureByNotary = async (documentId, userId) => {
       approvedAt: new Date(),
     };
 
-    await requestSignature.save();
-    await approveHistory.save();
-    const user = await Document.findOne({ _id: documentId }, 'requesterInfo.email');
-    if (!user) {
-      console.log('This is email', user);
-      throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
-    }
+    const userEmail = document.requesterInfo.email;
 
-    await emailService.sendPaymentEmail(user.requesterInfo.email, documentId, paymentLinkResponse);
+    // Send payment email
+    await emailService.sendPaymentEmail(userEmail, documentId, paymentLinkResponse);
+
+    // Send document status update email
+    await emailService.sendDocumentStatusUpdateEmail(userEmail, documentId, 'digitalSignature', 'completed');
+
+    // Save approve history
+    await approveHistory.save();
+
+    // Save request signature
+    await requestSignature.save();
 
     return {
       message: 'Notary approved and minted NFTs successfully',

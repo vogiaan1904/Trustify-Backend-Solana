@@ -17,6 +17,8 @@ const allRoles = {
     'sendSessionForNotarization',
     'getSessionStatus',
     'getDocument',
+    'getWallet',
+    'transferNFT',
   ],
   admin: [
     'getUsers',

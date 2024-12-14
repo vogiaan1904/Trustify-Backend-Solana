@@ -49,7 +49,7 @@ const loadTemplate = async (templateName, replacements) => {
  */
 const sendResetPasswordEmail = async (to, token) => {
   const subject = 'Reset password';
-  const resetPasswordUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+  const resetPasswordUrl = `${process.env.CLIENT_URL}/reset-password?resetPassword=${token}`;
   const html = await loadTemplate('reset_password', { resetPasswordUrl });
   await sendEmail(to, subject, html);
 };
