@@ -49,6 +49,7 @@ const allRoles = {
     'getSessionStatus',
     'viewNotarizationHistoryByUserId',
     'getDocument',
+    'getSessionsByStatus',
   ],
   notary: [
     'getDocumentsByRole',

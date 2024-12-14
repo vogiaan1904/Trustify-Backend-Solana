@@ -17,79 +17,8 @@ module.exports = router;
 /**
  * @swagger
  * tags:
- *   name: Notary
+ *   name: Notary Dashboard
  *   description: Notary management
- */
-
-/**
- * @swagger
- * components:
- *   responses:
- *     BadRequest:
- *       description: Bad request due to invalid or missing query parameters
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Invalid request parameters"
- *               error:
- *                 type: string
- *                 example: "BadRequest"
- *     Unauthorized:
- *       description: Unauthorized access - invalid or missing token
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Unauthorized"
- *               error:
- *                 type: string
- *                 example: "Unauthorized"
- *     Forbidden:
- *       description: Forbidden - user does not have permission to access this resource
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Forbidden access"
- *               error:
- *                 type: string
- *                 example: "Forbidden"
- *     NotFound:
- *       description: Resource not found
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "Resource not found"
- *               error:
- *                 type: string
- *                 example: "NotFound"
- *     InternalServerError:
- *       description: Internal server error
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               message:
- *                 type: string
- *                 example: "An unexpected error occurred"
- *               error:
- *                 type: string
- *                 example: "InternalServerError"
  */
 
 /**

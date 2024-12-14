@@ -1,3 +1,5 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
 const {
@@ -945,14 +947,18 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
 
         // Update output file with transaction details
         outputFile.transactionHash = transactionData.transactionHash;
-        console.log(session.createdBy);
-        await userWalletService.addNFTToWallet(session.createdBy, {
-          transactionHash: transactionData.transactionHash,
-          amount: session.amount,
-          tokenId: transactionData.tokenId,
-          tokenURI: transactionData.tokenURI,
-          contractAddress: transactionData.contractAddress,
-        });
+
+        // Add NFT to wallet of everyone in session
+        for (const user of session.users) {
+          await userWalletService.addNFTToWallet(user._id, {
+            transactionHash: transactionData.transactionHash,
+            filename: outputFile.filename,
+            amount: session.amount,
+            tokenId: transactionData.tokenId,
+            tokenURI: transactionData.tokenURI,
+            contractAddress: transactionData.contractAddress,
+          });
+        }
       }
 
       // Save updated document
@@ -961,11 +967,11 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
 
     const payment = new Payment({
       orderCode: generateOrderCode(),
-      amount: session.notaryService.price * session.amount,
+      amount: session.notaryService.price * session.amount * (session.users.length + 1),
       description: `Session: ${sessionId.toString().slice(-15)}`,
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
-      userId,
+      userId: session.createdBy,
       sessionId,
       serviceId: session.notaryService.id,
       fieldId: session.notaryField.id,
@@ -984,10 +990,10 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
     await payment.save();
 
-    session.payment = payment._id;
-    session.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    session.orderCode = payment.orderCode;
-    await session.save();
+    // session.payment = payment._id;
+    // session.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    // session.orderCode = payment.orderCode;
+    // await session.save();
 
     await SessionStatusTracking.updateOne(
       { sessionId },
@@ -1012,9 +1018,22 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     await requestSessionSignature.save();
 
     await approveSessionHistory.save();
-    const user = await userService.getUserById(userId);
 
-    await emailService.sendPaymentEmail(user.email, session._id, paymentLinkResponse);
+    // send payment link to user
+    const user = await userService.getUserById(session.createdBy);
+    await emailService.sendPaymentEmail(user.email, sessionId, paymentLinkResponse.checkoutUrl);
+
+    // Send email to all users in session
+    const sessionUsers = session.users.map((user) => user.email);
+    const allEmails = [...new Set([...sessionUsers, user.email])];
+
+    await emailService.sendSessionStatusUpdateEmail(
+      allEmails,
+      sessionId,
+      'digitalSignature',
+      'completed',
+      'Session has been completed successfully'
+    );
 
     return {
       message: 'Notary approved and signed the session successfully',
@@ -1029,40 +1048,88 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
   }
 };
 
-const autoForwardSessionStatus = async () => {
-  // try {
-  //   const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+const autoVerifySession = async () => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
 
-  //   const pendingSessions = await SessionStatusTracking.find({
-  //     status: 'pending',
-  //     updatedAt: { $lte: oneMinuteAgo },
-  //   });
+    const pendingDocuments = await SessionStatusTracking.aggregate([
+      {
+        $match: {
+          status: 'pending',
+          updatedAt: { $lt: oneMinuteAgo },
+        },
+      },
+      {
+        $lookup: {
+          from: 'sessions',
+          localField: 'sessionId',
+          foreignField: '_id',
+          as: 'sessionInfo',
+        },
+      },
+      { $unwind: '$sessionInfo' },
+    ]);
 
-  //   const updatePromises = pendingSessions.map(async (tracking) => {
-  //     const updatedTracking = {
-  //       ...tracking.toObject(),
-  //       status: 'verification',
-  //       updatedAt: new Date(),
-  //     };
-  //     await SessionStatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+    const updatePromises = pendingDocuments.map(async (tracking) => {
+      const session = tracking.sessionInfo;
 
-  //     const approveSessionHistory = new ApproveSessionHistory({
-  //       userId: null,
-  //       sessionId: tracking.sessionId,
-  //       beforeStatus: 'pending',
-  //       afterStatus: 'verification',
-  //     });
-  //     await approveSessionHistory.save();
-  //   });
+      if (!session?.notaryService?.required_documents) {
+        console.log(`Session ${tracking._id} lacks notarization requirements`);
+        return null;
+      }
 
-  //   console.log(`Auto-forwarded ${updatePromises.length} sessions from 'pending' to 'verification' status`);
+      const requiredDocs = session.notaryService.required_documents;
+      const existingFileNames = session.files.map((file) => file.filename);
 
-  //   await Promise.all(updatePromises);
-  // } catch (error) {
-  //   console.error('Error auto-forwarding sessions:', error.message);
-  // }
+      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
 
-  console.log('Auto-forwarding sessions is disabled');
+      const newStatus = missingDocs.length === 0 ? 'processing' : 'rejected';
+
+      await SessionStatusTracking.updateOne(
+        { _id: tracking._id },
+        {
+          $set: {
+            status: newStatus,
+            updatedAt: new Date(),
+            feedback: missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined,
+          },
+        }
+      );
+
+      const sessionUsers = session.users.map((user) => user.email);
+      const allEmails = [...new Set([...sessionUsers, session.createdBy.email])];
+
+      emailService.sendSessionStatusUpdateEmail(
+        allEmails,
+        session._id,
+        'pending',
+        newStatus,
+        missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined
+      );
+
+      await new ApproveSessionHistory({
+        userId: null,
+        sessionId: session._id,
+        beforeStatus: 'pending',
+        afterStatus: newStatus,
+        createdDate: new Date(),
+      }).save();
+
+      return {
+        sessionId: session._id,
+        status: newStatus,
+        missingDocs: missingDocs.length > 0 ? missingDocs : null,
+      };
+    });
+
+    const results = (await Promise.all(updatePromises)).filter(Boolean);
+
+    console.log(`Auto-verification completed: ${results.length} sessions processed`);
+    return results;
+  } catch (error) {
+    console.error('Auto-verification error:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Session auto-verification failed');
+  }
 };
 
 module.exports = {
@@ -1088,5 +1155,5 @@ module.exports = {
   forwardSessionStatus,
   approveSignatureSessionByUser,
   approveSignatureSessionByNotary,
-  autoForwardSessionStatus,
+  autoVerifySession,
 };
