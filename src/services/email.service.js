@@ -88,7 +88,7 @@ const sendDocumentUploadEmail = async (to, userName, documentId) => {
 };
 
 const sendDocumentStatusUpdateEmail = async (email, documentId, currentStatus, newStatus, feedback) => {
-  const subject = newStatus === 'rejected' ? 'Tài liệu bị từ chối' : 'Cập nhật trạng thái tài liệu';
+  const subject = newStatus === 'rejected' ? 'Document Rejected' : 'Document Status Updated';
 
   const replacements = {
     documentId,
@@ -109,6 +109,36 @@ const sendPaymentEmail = async (email, documentId, paymentLinkResponse) => {
   await sendEmail(email, subject, html);
 };
 
+const sendSessionStatusUpdateEmail = async (emails, sessionId, currentStatus, newStatus, feedback) => {
+  const validEmails = emails.filter((email) => email && typeof email === 'string' && email.trim() !== '');
+
+  if (validEmails.length === 0) {
+    console.warn('No valid email recipients for session status update');
+    return;
+  }
+
+  const subject = newStatus === 'rejected' ? 'Session Rejected' : 'Session Status Updated';
+
+  const replacements = {
+    sessionId,
+    currentStatus,
+    newStatus,
+    feedback: feedback || '',
+  };
+
+  const html = await loadTemplate('session_status_update', replacements);
+
+  const sendPromises = validEmails.map((email) => sendEmail(email, subject, html));
+
+  try {
+    await Promise.all(sendPromises);
+    console.log(`Status update emails sent for session ${sessionId}`);
+  } catch (error) {
+    console.error(`Failed to send status update emails for session ${sessionId}:`, error);
+    throw error;
+  }
+};
+
 module.exports = {
   transport,
   sendEmail,
@@ -118,4 +148,5 @@ module.exports = {
   sendDocumentUploadEmail,
   sendDocumentStatusUpdateEmail,
   sendPaymentEmail,
+  sendSessionStatusUpdateEmail,
 };

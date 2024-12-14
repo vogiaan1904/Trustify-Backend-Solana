@@ -89,15 +89,19 @@ router
 
 router.route('/get-session-status/:sessionId').get(auth('getSessionStatus'), sessionController.getSessionStatus);
 
-router.route('/get-session-by-role').get(auth('getSessionByRole'), sessionController.getSessionByRole);
+router.route('/get-sessions-by-status').get(auth('getSessionsByStatus'), sessionController.getSessionsByStatus);
 
-router
-  .route('/forward-session-status/:sessionId')
-  .patch(
-    auth('forwardSessionStatus'),
-    validate(sessionValidation.forwardSessionStatus),
-    sessionController.forwardSessionStatus
-  );
+router.route('/forward-session-status/:sessionId').patch(
+  auth('forwardSessionStatus'),
+  upload.array('files'),
+  (req, res, next) => {
+    const files = req.files || [];
+    req.body.files = files;
+    next();
+  },
+  validate(sessionValidation.forwardSessionStatus),
+  sessionController.forwardSessionStatus
+);
 
 router.post(
   '/approve-signature-session-by-user',
@@ -108,10 +112,10 @@ router.post(
 );
 
 router.post(
-  '/approve-signature-session-by-secretary',
-  auth('approveSignatureSessionBySecretary'),
-  validate(sessionValidation.approveSignatureSessionBySecretary),
-  sessionController.approveSignatureSessionBySecretary
+  '/approve-signature-session-by-notary',
+  auth('approveSignatureSessionByNotary'),
+  validate(sessionValidation.approveSignatureSessionByNotary),
+  sessionController.approveSignatureSessionByNotary
 );
 
 /**
@@ -157,6 +161,10 @@ router.post(
  *                 format: date
  *                 description: End date of the session
  *                 example: "2024-10-10"
+ *               amount:
+ *                 type: number
+ *                 description: Amount of the session
+ *                 example: 10
  *               users:
  *                 type: array
  *                 items:
@@ -175,6 +183,7 @@ router.post(
  *               - endTime
  *               - endDate
  *               - users
+ *               - amount
  *     responses:
  *       "201":
  *         description: Session created successfully
@@ -1051,21 +1060,63 @@ router.post(
 
 /**
  * @swagger
- * /session/get-session-by-role:
+ * /session/get-sessions-by-status:
  *   get:
- *     summary: Get sessions by user role (notary or secretary)
+ *     summary: Get sessions by status
+ *     description: Retrieve documents based on status filters
  *     tags: [Sessions]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [processing, readyToSign, pendingSignature]
+ *         required: true
+ *         description: Filter sessions by status
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Maximum number of sessions per page
  *     responses:
  *       "200":
- *         description: Successfully retrieved sessions based on user role
+ *         description: OK
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Session'
+ *               type: object
+ *               properties:
+ *                 sessions:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Sessions'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                       example: 1
+ *                     limit:
+ *                       type: integer
+ *                       example: 10
+ *                     totalPages:
+ *                       type: integer
+ *                       example: 7
+ *                     totalSessions:
+ *                       type: integer
+ *                       example: 66
  *       "400":
  *         $ref: '#/components/responses/BadRequest'
  *       "401":
@@ -1104,18 +1155,23 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               action:
  *                 type: string
- *                 description: The action to perform on the session (accept or reject)
- *                 example: accept
- *               feedBack:
+ *                 enum: [accept, reject]
+ *                 description: The action to perform on the session
+ *               feedback:
  *                 type: string
  *                 description: Feedback for rejecting the session (required if action is 'reject')
- *                 example: "The session is missing necessary information."
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Output files to be uploaded
  *     responses:
  *       "200":
  *         description: Successfully updated the session status
@@ -1126,10 +1182,23 @@ router.post(
  *               properties:
  *                 message:
  *                   type: string
- *                   example: "Session status updated to processing"
  *                 sessionId:
  *                   type: string
- *                   example: "abc123"
+ *                 outputFiles:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       filename:
+ *                         type: string
+ *                       firebaseUrl:
+ *                         type: string
+ *                       transactionHash:
+ *                         type: string
+ *                         nullable: true
+ *                       uploadedAt:
+ *                         type: string
+ *                         format: date-time
  *       "400":
  *         description: Bad request (invalid parameters or missing required fields)
  *         content:
@@ -1194,9 +1263,6 @@ router.post(
  *               sessionId:
  *                 type: string
  *                 description: ID of the session to approve
- *               amount:
- *                 type: number
- *                 description: Amount of the session to approve
  *               signatureImage:
  *                 type: string
  *                 format: binary
@@ -1226,9 +1292,9 @@ router.post(
 
 /**
  * @swagger
- * /session/approve-signature-session-by-secretary:
+ * /session/approve-signature-session-by-notary:
  *   post:
- *     summary: Approve signature session by secretary
+ *     summary: Approve signature session by notary
  *     tags: [Sessions]
  *     security:
  *       - bearerAuth: []
