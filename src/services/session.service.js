@@ -516,7 +516,7 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
     }
 
     const newFiles = fileUrls.map((url, index) => ({
-      filename: `${Date.now()}-${files[index].originalname}-by-${userId}`,
+      filename: `${files[index].originalname}-by-${userId}`,
       firebaseUrl: url,
       createAt: new Date(),
       uploadedBy: userId,
