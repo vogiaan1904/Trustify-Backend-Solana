@@ -29,8 +29,8 @@ describe('Payment Service', () => {
       const paymentData = {
         amount: 100,
         description: 'Test Payment',
-        returnUrl: 'undefined/success.html',
-        cancelUrl: 'undefined/cancel.html',
+        returnUrl: 'http://localhost:3100/success.html',
+        cancelUrl: 'http://localhost:3100/cancel.html',
         userId: 'userId',
       };
       const mockPayment = {

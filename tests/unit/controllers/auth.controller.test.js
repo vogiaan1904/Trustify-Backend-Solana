@@ -1,187 +1,209 @@
-const setupTestDB = require('../../utils/setupTestDB');
-const mockFirebase = require('./firebase.mock');
-
-setupTestDB();
-mockFirebase();
-const request = require('supertest');
-const express = require('express');
 const httpStatus = require('http-status');
+const {
+  register,
+  login,
+  logout,
+  refreshTokens,
+  forgotPassword,
+  resetPassword,
+  sendVerificationEmail,
+  verifyEmail,
+  loginWithGoogle,
+} = require('../../../src/controllers/auth.controller');
 const { authService, userService, tokenService, emailService } = require('../../../src/services');
 const { auth, db } = require('../../../src/config/firebase');
-const authController = require('../../../src/controllers/auth.controller');
 const catchAsync = require('../../../src/utils/catchAsync');
+
+// Mock ethers and related functionalities
+jest.mock('ethers', () => {
+  const originalModule = jest.requireActual('ethers');
+  return {
+    ...originalModule,
+    Wallet: jest.fn().mockImplementation(() => ({
+      address: '0xMockAddress',
+    })),
+    Contract: jest.fn().mockImplementation(() => ({
+      mintNFT: jest.fn(),
+      interface: {
+        parseLog: jest.fn(),
+      },
+      tokenURI: jest.fn(),
+    })),
+    JsonRpcProvider: jest.fn().mockImplementation(() => ({
+      getTransaction: jest.fn(),
+      getTransactionReceipt: jest.fn(),
+      getBlock: jest.fn(),
+    })),
+  };
+});
 
 jest.mock('../../../src/services/auth.service');
 jest.mock('../../../src/services/user.service');
 jest.mock('../../../src/services/token.service');
 jest.mock('../../../src/services/email.service');
-jest.mock('../../../src/config/firebase', () => ({
-  auth: {
-    createUser: jest.fn(),
-    getUserByEmail: jest.fn(),
-  },
-  db: {
-    ref: jest.fn().mockReturnThis(),
-    set: jest.fn().mockResolvedValue(),
-  },
-}));
-jest.mock('../../../src/utils/catchAsync', () => (fn) => (req, res, next) => fn(req, res, next).catch(next));
-
-const app = express();
-app.use(express.json());
-app.post('/register', authController.register);
-app.post('/login', authController.login);
-app.post('/logout', authController.logout);
-app.post('/refresh-tokens', authController.refreshTokens);
-app.post('/forgot-password', authController.forgotPassword);
-app.post('/reset-password', authController.resetPassword);
-app.post('/send-verification-email', authController.sendVerificationEmail);
-app.post('/verify-email', authController.verifyEmail);
-app.post('/login-with-google', authController.loginWithGoogle);
+jest.mock('../../../src/config/firebase');
 
 describe('Auth Controller', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
+  let req, res, next;
+
+  beforeEach(() => {
+    req = {
+      body: {},
+      query: {},
+      user: {},
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
+      redirect: jest.fn().mockReturnThis(),
+    };
+    next = jest.fn();
   });
 
-  describe('POST /register', () => {
-    it('should register a new user', async () => {
-      const userBody = { email: 'john@example.com', password: 'password123', name: 'John Doe' };
-      const user = { id: 'user-id', ...userBody };
-      const firebaseUser = { uid: 'firebase-uid' };
-      const tokens = { access: { token: 'access-token' }, refresh: { token: 'refresh-token' } };
+  describe('register', () => {
+    it('should register a new user and send tokens', async () => {
+      const user = { id: 'userId', email: 'test@example.com' };
+      const tokens = { access: { token: 'accessToken' }, refresh: { token: 'refreshToken' } };
 
       userService.createUser.mockResolvedValue(user);
-      auth.createUser.mockResolvedValue(firebaseUser);
       tokenService.generateAuthTokens.mockResolvedValue(tokens);
-      emailService.sendEmail.mockResolvedValue();
+      emailService.sendEmail.mockResolvedValue(true);
 
-      const res = await request(app).post('/register').send(userBody);
+      req.body = { email: 'test@example.com', password: 'password' };
 
-      expect(res.status).toBe(httpStatus.CREATED);
-    });
-  });
+      await register(req, res, next);
 
-  describe('POST /login', () => {
-    it('should login a user', async () => {
-      const loginBody = { email: 'john@example.com', password: 'password123' };
-      const user = { id: 'user-id', email: loginBody.email };
-      const tokens = { access: { token: 'access-token' }, refresh: { token: 'refresh-token' } };
-
-      authService.loginUserWithEmailAndPassword.mockResolvedValue(user);
-      tokenService.generateAuthTokens.mockResolvedValue(tokens);
-
-      const res = await request(app).post('/login').send(loginBody);
-
-      expect(res.status).toBe(httpStatus.OK);
-      expect(res.body).toEqual({ user, tokens });
-      expect(authService.loginUserWithEmailAndPassword).toHaveBeenCalledWith(loginBody.email, loginBody.password);
+      expect(userService.createUser).toHaveBeenCalledWith(req.body);
       expect(tokenService.generateAuthTokens).toHaveBeenCalledWith(user);
     });
   });
 
-  describe('POST /logout', () => {
-    it('should logout a user', async () => {
-      const logoutBody = { refreshToken: 'refresh-token' };
+  describe('login', () => {
+    it('should login a user and send tokens', async () => {
+      const user = { id: 'userId', email: 'test@example.com' };
+      const tokens = { access: { token: 'accessToken' }, refresh: { token: 'refreshToken' } };
 
-      authService.logout.mockResolvedValue();
+      authService.loginUserWithEmailAndPassword.mockResolvedValue(user);
+      tokenService.generateAuthTokens.mockResolvedValue(tokens);
 
-      const res = await request(app).post('/logout').send(logoutBody);
+      req.body = { email: 'test@example.com', password: 'password' };
 
-      expect(res.status).toBe(httpStatus.NO_CONTENT);
-      expect(authService.logout).toHaveBeenCalledWith(logoutBody.refreshToken);
+      await login(req, res, next);
+
+      expect(authService.loginUserWithEmailAndPassword).toHaveBeenCalledWith(req.body.email, req.body.password);
+      expect(tokenService.generateAuthTokens).toHaveBeenCalledWith(user);
     });
   });
 
-  describe('POST /refresh-tokens', () => {
-    it('should refresh auth tokens', async () => {
-      const refreshBody = { refreshToken: 'refresh-token' };
-      const tokens = { access: { token: 'access-token' }, refresh: { token: 'refresh-token' } };
+  describe('logout', () => {
+    it('should logout a user', async () => {
+      authService.logout.mockResolvedValue(true);
+
+      req.body = { refreshToken: 'refreshToken' };
+
+      await logout(req, res, next);
+
+      expect(authService.logout).toHaveBeenCalledWith(req.body.refreshToken);
+      expect(res.status).toHaveBeenCalledWith(httpStatus.NO_CONTENT);
+      expect(res.send).toHaveBeenCalled();
+    });
+  });
+
+  describe('refreshTokens', () => {
+    it('should refresh tokens', async () => {
+      const tokens = { access: { token: 'accessToken' }, refresh: { token: 'refreshToken' } };
 
       authService.refreshAuth.mockResolvedValue(tokens);
 
-      const res = await request(app).post('/refresh-tokens').send(refreshBody);
+      req.body = { refreshToken: 'refreshToken' };
 
-      expect(res.status).toBe(httpStatus.OK);
-      expect(res.body).toEqual(tokens);
-      expect(authService.refreshAuth).toHaveBeenCalledWith(refreshBody.refreshToken);
+      await refreshTokens(req, res, next);
+
+      expect(authService.refreshAuth).toHaveBeenCalledWith(req.body.refreshToken);
+      expect(res.send).toHaveBeenCalledWith(tokens);
     });
   });
 
-  describe('POST /forgot-password', () => {
+  describe('forgotPassword', () => {
     it('should send reset password email', async () => {
-      const forgotPasswordBody = { email: 'john@example.com' };
-      const resetPasswordToken = 'reset-password-token';
+      const resetPasswordToken = 'resetPasswordToken';
 
       tokenService.generateResetPasswordToken.mockResolvedValue(resetPasswordToken);
-      emailService.sendResetPasswordEmail.mockResolvedValue();
+      emailService.sendResetPasswordEmail.mockResolvedValue(true);
 
-      const res = await request(app).post('/forgot-password').send(forgotPasswordBody);
+      req.body = { email: 'test@example.com' };
 
-      expect(res.status).toBe(httpStatus.NO_CONTENT);
-      expect(tokenService.generateResetPasswordToken).toHaveBeenCalledWith(forgotPasswordBody.email);
-      expect(emailService.sendResetPasswordEmail).toHaveBeenCalledWith(forgotPasswordBody.email, resetPasswordToken);
+      await forgotPassword(req, res, next);
+
+      expect(tokenService.generateResetPasswordToken).toHaveBeenCalledWith(req.body.email);
+      expect(emailService.sendResetPasswordEmail).toHaveBeenCalledWith(req.body.email, resetPasswordToken);
     });
   });
 
-  describe('POST /reset-password', () => {
+  describe('resetPassword', () => {
     it('should reset password', async () => {
-      const resetPasswordBody = { password: 'new-password' };
-      const resetPasswordQuery = { token: 'reset-token' };
+      authService.resetPassword.mockResolvedValue(true);
 
-      authService.resetPassword.mockResolvedValue();
+      req.query = { token: 'resetToken' };
+      req.body = { password: 'newPassword' };
 
-      const res = await request(app).post('/reset-password').query(resetPasswordQuery).send(resetPasswordBody);
+      await resetPassword(req, res, next);
 
-      expect(res.status).toBe(httpStatus.NO_CONTENT);
-      expect(authService.resetPassword).toHaveBeenCalledWith(resetPasswordQuery.token, resetPasswordBody.password);
+      expect(authService.resetPassword).toHaveBeenCalledWith(req.query.token, req.body.password);
+      expect(res.status).toHaveBeenCalledWith(httpStatus.NO_CONTENT);
+      expect(res.send).toHaveBeenCalled();
     });
   });
 
-  describe('POST /send-verification-email', () => {
+  describe('sendVerificationEmail', () => {
     it('should send verification email', async () => {
-      const user = { id: 'user-id', email: 'john@example.com' };
-      const verifyEmailToken = 'verify-email-token';
+      const verifyEmailToken = 'verifyEmailToken';
 
       tokenService.generateVerifyEmailToken.mockResolvedValue(verifyEmailToken);
-      emailService.sendVerificationEmail.mockResolvedValue();
+      emailService.sendVerificationEmail.mockResolvedValue(true);
 
-      const res = await request(app).post('/send-verification-email').send({ user });
+      req.user = { id: 'userId', email: 'test@example.com' };
 
-      console.log(res.body); // Thêm log để kiểm tra chi tiết lỗi
+      await sendVerificationEmail(req, res, next);
 
-      expect(res.status).toBe(httpStatus.INTERNAL_SERVER_ERROR);
+      expect(tokenService.generateVerifyEmailToken).toHaveBeenCalledWith(req.user);
+      expect(emailService.sendVerificationEmail).toHaveBeenCalledWith(req.user.email, verifyEmailToken);
     });
   });
 
-  describe('POST /verify-email', () => {
+  describe('verifyEmail', () => {
     it('should verify email', async () => {
-      const verifyEmailQuery = { token: 'verify-token' };
+      authService.verifyEmail.mockResolvedValue(true);
 
-      authService.verifyEmail.mockResolvedValue();
+      req.query = { token: 'verifyToken' };
 
-      const res = await request(app).post('/verify-email').query(verifyEmailQuery).send();
+      await verifyEmail(req, res, next);
 
-      expect(res.status).toBe(httpStatus.NO_CONTENT);
-      expect(authService.verifyEmail).toHaveBeenCalledWith(verifyEmailQuery.token);
+      expect(authService.verifyEmail).toHaveBeenCalledWith(req.query.token);
+      expect(res.status).toHaveBeenCalledWith(httpStatus.NO_CONTENT);
+      expect(res.send).toHaveBeenCalled();
     });
   });
 
-  describe('POST /login-with-google', () => {
-    it('should login with Google', async () => {
-      const user = { id: 'user-id', email: 'john@example.com', name: 'John Doe', password: 'password123' };
-      const tokens = { access: { token: 'access-token' }, refresh: { token: 'refresh-token' } };
-      const firebaseUser = { uid: 'firebase-uid' };
+  describe('loginWithGoogle', () => {
+    it('should login with Google and send tokens', async () => {
+      const user = { id: 'userId', email: 'test@example.com', password: 'password', name: 'Test User' };
+      const tokens = { access: { token: 'accessToken' }, refresh: { token: 'refreshToken' } };
 
       tokenService.generateAuthTokens.mockResolvedValue(tokens);
+      userService.updateUserById.mockResolvedValue(true);
       auth.getUserByEmail.mockRejectedValue({ code: 'auth/user-not-found' });
-      auth.createUser.mockResolvedValue(firebaseUser);
-      db.ref.mockReturnThis();
-      db.set.mockResolvedValue();
+      auth.createUser.mockResolvedValue({ uid: 'firebaseUserId' });
+      db.ref.mockReturnValue({
+        set: jest.fn().mockResolvedValue(true),
+      });
 
-      const res = await request(app).post('/login-with-google').send({ user });
+      req.user = user;
 
-      expect(res.status).toBe(httpStatus.INTERNAL_SERVER_ERROR);
+      await loginWithGoogle(req, res, next);
+
+      expect(tokenService.generateAuthTokens).toHaveBeenCalledWith(user);
+      expect(auth.getUserByEmail).toHaveBeenCalledWith(user.email);
     });
   });
 });

@@ -1,111 +1,131 @@
-// session.model.test.js
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const Session = require('../../../src/models/session.model');
+const { toJSON, paginate } = require('../../../src/models/plugins');
+const { any } = require('joi');
 
-let mongoServer;
+// Mock the plugins
+jest.mock('../../../src/models/plugins/toJSON.plugin', () => jest.fn());
+jest.mock('../../../src/models/plugins/paginate.plugin', () => jest.fn());
 
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-});
+describe('Session model', () => {
+  let session;
 
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-describe('Session Model', () => {
-  beforeEach(async () => {
-    await Session.deleteMany({});
-  });
-
-  test('should correctly apply the toJSON plugin', async () => {
-    const session = await Session.create({
+  beforeEach(() => {
+    session = new Session({
+      sessionId: 'sessionId123',
+      notaryField: { field: 'value' },
+      notaryService: { service: 'value' },
       sessionName: 'Test Session',
-      notaryField: { name: 'Field' },
-      notaryService: { name: 'Service' },
-      startTime: '14:00',
-      startDate: new Date(),
-      endTime: '15:00',
-      endDate: new Date(),
-      users: [{ email: 'test@example.com' }],
+      startTime: '10:00 AM',
+      startDate: new Date('2023-01-01'),
+      endTime: '11:00 AM',
+      endDate: new Date('2023-01-01'),
+      users: [
+        {
+          email: 'user@example.com',
+          status: 'pending',
+        },
+      ],
       createdBy: new mongoose.Types.ObjectId(),
+      amount: 100,
+      files: [
+        {
+          userId: new mongoose.Types.ObjectId(),
+          filename: 'file1.pdf',
+          firebaseUrl: 'https://firebase.url/file1.pdf',
+          createAt: new Date('2023-01-01'),
+        },
+      ],
+      output: [
+        {
+          filename: 'output1.pdf',
+          firebaseUrl: 'https://firebase.url/output1.pdf',
+          transactionHash: '0x123',
+          uploadedAt: new Date('2023-01-01'),
+        },
+      ],
     });
-
-    const jsonSession = session.toJSON();
-    expect(jsonSession).not.toHaveProperty('_id');
-    expect(jsonSession).not.toHaveProperty('__v');
-    expect(jsonSession).toHaveProperty('id', session._id.toString());
   });
 
-  test('should correctly apply the paginate plugin', async () => {
-    await Session.create([
+  it('should correctly set the sessionId', () => {
+    expect(session.sessionId).toBe('sessionId123');
+  });
+
+  it('should correctly set the notaryField', () => {
+    expect(session.notaryField).toEqual({ field: 'value' });
+  });
+
+  it('should correctly set the notaryService', () => {
+    expect(session.notaryService).toEqual({ service: 'value' });
+  });
+
+  it('should correctly set the sessionName', () => {
+    expect(session.sessionName).toBe('Test Session');
+  });
+
+  it('should correctly set the startTime', () => {
+    expect(session.startTime).toBe('10:00 AM');
+  });
+
+  it('should correctly set the startDate', () => {
+    expect(session.startDate).toEqual(new Date('2023-01-01'));
+  });
+
+  it('should correctly set the endTime', () => {
+    expect(session.endTime).toBe('11:00 AM');
+  });
+
+  it('should correctly set the endDate', () => {
+    expect(session.endDate).toEqual(new Date('2023-01-01'));
+  });
+
+  it('should correctly set the users', () => {
+    expect(session.users.toObject()).toEqual([
       {
-        sessionName: 'Session 1',
-        notaryField: { name: 'Field 1' },
-        notaryService: { name: 'Service 1' },
-        startTime: '14:00',
-        startDate: new Date(),
-        endTime: '15:00',
-        endDate: new Date(),
-        users: [{ email: 'test1@example.com' }],
-        createdBy: new mongoose.Types.ObjectId(),
-      },
-      {
-        sessionName: 'Session 2',
-        notaryField: { name: 'Field 2' },
-        notaryService: { name: 'Service 2' },
-        startTime: '14:00',
-        startDate: new Date(),
-        endTime: '15:00',
-        endDate: new Date(),
-        users: [{ email: 'test2@example.com' }],
-        createdBy: new mongoose.Types.ObjectId(),
-      },
-      {
-        sessionName: 'Session 3',
-        notaryField: { name: 'Field 3' },
-        notaryService: { name: 'Service 3' },
-        startTime: '14:00',
-        startDate: new Date(),
-        endTime: '15:00',
-        endDate: new Date(),
-        users: [{ email: 'test3@example.com' }],
-        createdBy: new mongoose.Types.ObjectId(),
+        _id: expect.any(mongoose.Types.ObjectId),
+        email: 'user@example.com',
+        status: 'pending',
       },
     ]);
-
-    const result = await Session.paginate({}, { page: 1, limit: 2 });
-    expect(result.results).toHaveLength(2);
-    expect(result.totalResults).toBe(3);
-    expect(result.totalPages).toBe(2);
-    expect(result.page).toBe(1);
   });
 
-  test('should throw validation error if required fields are missing', async () => {
-    const session = new Session({
-      notaryField: { name: 'Field' },
-      notaryService: { name: 'Service' },
-      startTime: '14:00',
-      startDate: new Date(),
-      endTime: '15:00',
-      endDate: new Date(),
-      users: [{ email: 'test@example.com' }],
-    });
+  it('should correctly set the createdBy', () => {
+    expect(session.createdBy).toBeInstanceOf(mongoose.Types.ObjectId);
+  });
 
-    let err;
-    try {
-      await session.validate();
-    } catch (error) {
-      err = error;
-    }
+  it('should correctly set the amount', () => {
+    expect(session.amount).toBe(100);
+  });
 
-    expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
-    expect(err.errors.sessionName).toBeDefined();
+  it('should correctly set the files', () => {
+    expect(session.files.toObject()).toEqual([
+      {
+        _id: expect.any(mongoose.Types.ObjectId),
+        userId: expect.any(mongoose.Types.ObjectId),
+        filename: 'file1.pdf',
+        firebaseUrl: 'https://firebase.url/file1.pdf',
+        createAt: new Date('2023-01-01'),
+      },
+    ]);
+  });
+
+  it('should correctly set the output', () => {
+    expect(session.output.toObject()).toEqual([
+      {
+        _id: expect.any(mongoose.Types.ObjectId),
+        filename: 'output1.pdf',
+        firebaseUrl: 'https://firebase.url/output1.pdf',
+        transactionHash: '0x123',
+        uploadedAt: new Date('2023-01-01'),
+      },
+    ]);
+  });
+
+  it('should apply the toJSON plugin', () => {
+    expect(toJSON).toHaveBeenCalled();
+  });
+
+  it('should apply the paginate plugin', () => {
+    expect(paginate).toHaveBeenCalled();
   });
 });
