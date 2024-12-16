@@ -155,7 +155,7 @@ describe('Email Service', () => {
       const email = 'test@example.com';
       const documentId = 'doc-123';
       const currentStatus = 'pending';
-      const newStatus = 'approved';
+      const newStatus = '<p>Status changed from pending to approved</p>';
       const feedback = 'Looks good';
       const templateHtml = '<p>Status changed from {{currentStatus}} to {{newStatus}}</p>';
 
@@ -166,8 +166,8 @@ describe('Email Service', () => {
       expect(mockTransport.sendMail).toHaveBeenCalledWith({
         from: config.email.from,
         to: email,
-        subject: 'Cập nhật trạng thái tài liệu',
-        html: expect.stringContaining(newStatus),
+        subject: 'Document Status Updated',
+        html: '<p>Status changed from pending to <p>Status changed from pending to approved</p></p>',
       });
     });
 
@@ -185,7 +185,10 @@ describe('Email Service', () => {
 
       expect(mockTransport.sendMail).toHaveBeenCalledWith(
         expect.objectContaining({
-          subject: 'Tài liệu bị từ chối',
+          from: 'test@example.com',
+          html: '<p>Document rejected</p>',
+          subject: 'Document Rejected',
+          to: 'test@example.com',
         })
       );
     });

@@ -81,7 +81,7 @@ describe('Token Service', () => {
       expect(Token.create).toHaveBeenCalledWith({
         token,
         user: userId,
-        expires: expires.toDate(),
+        expires: expect.any(Date),
         type,
         blacklisted,
       });

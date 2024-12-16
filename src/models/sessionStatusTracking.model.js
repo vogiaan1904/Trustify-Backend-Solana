@@ -15,7 +15,7 @@ const SessionStatusTrackingSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    feedBack: {
+    feedback: {
       type: String,
       required: false,
     },
