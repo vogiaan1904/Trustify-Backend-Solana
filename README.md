@@ -1,6 +1,6 @@
-# CongChungOnline Backend
+# Online Notarization Management System - Backend
 
-This repository contains the backend code for **CongChungOnline**, a platform for online notarization services that leverages blockchain and NFT for document storage.
+This repository contains the backend code for **Online Notarization Management System**, a platform for online notarization services that leverages blockchain and NFT for document storage.
 
 ## Features
 
