@@ -19,7 +19,7 @@ const generateOrderCode = () => {
 };
 
 const uploadFileToFirebase = async (file, rootFolder, folderName) => {
-  const fileName = `${Date.now()}-${file.originalname}`;
+  const fileName = `${file.originalname}`;
   const fileRef = bucket.file(`${rootFolder}/${folderName}/${fileName}`);
 
   try {
