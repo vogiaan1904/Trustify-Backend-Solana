@@ -103,7 +103,7 @@ const createDocument = async (documentBody, files, userId) => {
 
     const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
     const formattedFiles = files.map((file, index) => ({
-      filename: `${Date.now()}-${file.originalname}`,
+      filename: `${file.originalname}`,
       firebaseUrl: fileUrls[index],
     }));
 
