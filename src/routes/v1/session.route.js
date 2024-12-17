@@ -118,6 +118,10 @@ router.post(
   sessionController.approveSignatureSessionByNotary
 );
 
+router
+  .route('/:sessionId/files/:fileId')
+  .delete(auth(), validate(sessionValidation.deleteFile), sessionController.deleteFile);
+
 /**
  * @swagger
  * /session/createSession:
@@ -1328,6 +1332,40 @@ router.post(
  *       "404":
  *         $ref: '#/components/responses/NotFound'
  *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /session/{sessionId}/files/{fileId}:
+ *   delete:
+ *     summary: Delete file
+ *     tags: [Sessions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the session
+ *       - in: path
+ *         name: fileId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the file
+ *     responses:
+ *       204:
+ *         $ref: '#/components/responses/NoContent'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       403:
+ *         $ref: '#/components/responses/Forbidden'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
 

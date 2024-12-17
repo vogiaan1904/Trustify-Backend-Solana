@@ -137,14 +137,24 @@ const forwardSessionStatus = catchAsync(async (req, res) => {
 
 const approveSignatureSessionByUser = catchAsync(async (req, res) => {
   const { sessionId } = req.body;
-  const signatureImage = req.file ? req.file.originalname : null;
-  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, signatureImage);
+  const userId = req.user.id;
+  console.log(req.file);
+  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, userId, req.file);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 
 const approveSignatureSessionByNotary = catchAsync(async (req, res) => {
   const requestApproved = await sessionService.approveSignatureSessionByNotary(req.body.sessionId, req.user.id);
   res.status(httpStatus.OK).send(requestApproved);
+});
+
+const deleteFile = catchAsync(async (req, res) => {
+  const { sessionId, fileId } = req.params;
+  const userId = req.user.id;
+
+  await sessionService.deleteFile(sessionId, fileId, userId);
+
+  res.status(httpStatus.NO_CONTENT).send();
 });
 
 module.exports = {
@@ -165,4 +175,5 @@ module.exports = {
   forwardSessionStatus,
   approveSignatureSessionByUser,
   approveSignatureSessionByNotary,
+  deleteFile,
 };
