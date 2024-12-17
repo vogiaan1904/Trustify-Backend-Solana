@@ -8,17 +8,23 @@ const requestSessionSignatureSchema = new mongoose.Schema(
       ref: 'Session',
       required: true,
     },
-    signatureImage: {
-      type: String,
-    },
     approvalStatus: {
       notary: {
         approved: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
       },
-      user: {
+      users: [
+        {
+          email: { type: String },
+          approved: { type: Boolean, default: false },
+          approvedAt: { type: Date, default: null },
+          signatureImage: { type: String, default: null },
+        },
+      ],
+      creator: {
         approved: { type: Boolean, default: false },
         approvedAt: { type: Date, default: null },
+        signatureImage: { type: String, default: null },
       },
     },
   },
@@ -27,7 +33,6 @@ const requestSessionSignatureSchema = new mongoose.Schema(
     collection: 'requestSessionSignature',
   }
 );
-
 requestSessionSignatureSchema.plugin(toJSON);
 requestSessionSignatureSchema.plugin(paginate);
 
