@@ -34,9 +34,9 @@ const getWallet = catchAsync(async (req, res) => {
  */
 const transferNFT = catchAsync(async (req, res) => {
   const fromUserId = req.user.id;
-  const { transactionHash, toUserId, amount } = req.body;
+  const { transactionHash, toUserEmail, amount } = req.body;
 
-  await userWalletService.transferNFT(fromUserId, toUserId, transactionHash, amount);
+  await userWalletService.transferNFT(fromUserId, toUserEmail, transactionHash, amount);
 
   res.status(httpStatus.OK).send({ message: 'NFT transferred successfully' });
 });

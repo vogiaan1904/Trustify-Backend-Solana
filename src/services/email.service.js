@@ -63,7 +63,7 @@ const sendVerificationEmail = async (to, token) => {
 
 const sendInvitationEmail = async (to, sessionId) => {
   const subject = 'Session Invitation';
-  const joinSessionURL = `http://localhost:3100/v1/session/joinSession/${sessionId}`;
+  const joinSessionURL = `${process.env.CLIENT_URL}/notarization-session?sessionId=${sessionId}`;
   const html = await loadTemplate('invitation_email', { joinSessionURL });
   await sendEmail(to, subject, html);
 };

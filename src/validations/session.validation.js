@@ -110,6 +110,13 @@ const approveSignatureSessionByNotary = {
   }),
 };
 
+const deleteFile = {
+  params: Joi.object().keys({
+    sessionId: Joi.string().custom(objectId).required(),
+    fileId: Joi.string().custom(objectId).required(),
+  }),
+};
+
 module.exports = {
   createSession,
   addUserToSession,
@@ -122,4 +129,5 @@ module.exports = {
   forwardSessionStatus,
   approveSignatureSessionByUser,
   approveSignatureSessionByNotary,
+  deleteFile,
 };

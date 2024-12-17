@@ -19,7 +19,7 @@ const generateOrderCode = () => {
 };
 
 const uploadFileToFirebase = async (file, rootFolder, folderName) => {
-  const fileName = `${Date.now()}-${file.originalname}`;
+  const fileName = `${file.originalname}`;
   const fileRef = bucket.file(`${rootFolder}/${folderName}/${fileName}`);
 
   try {
@@ -103,7 +103,7 @@ const createDocument = async (documentBody, files, userId) => {
 
     const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
     const formattedFiles = files.map((file, index) => ({
-      filename: `${Date.now()}-${file.originalname}`,
+      filename: `${file.originalname}`,
       firebaseUrl: fileUrls[index],
     }));
 
