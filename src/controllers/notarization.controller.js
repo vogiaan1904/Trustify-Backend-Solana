@@ -92,8 +92,7 @@ const getAllNotarizations = catchAsync(async (req, res) => {
 
 const approveSignatureByUser = catchAsync(async (req, res) => {
   const { documentId } = req.body;
-  const signatureImage = req.file.originalname;
-  const requestApproved = await notarizationService.approveSignatureByUser(documentId, signatureImage);
+  const requestApproved = await notarizationService.approveSignatureByUser(documentId, req.file);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 

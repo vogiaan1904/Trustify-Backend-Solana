@@ -138,7 +138,6 @@ const forwardSessionStatus = catchAsync(async (req, res) => {
 const approveSignatureSessionByUser = catchAsync(async (req, res) => {
   const { sessionId } = req.body;
   const userId = req.user.id;
-  console.log(req.file);
   const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, userId, req.file);
   res.status(httpStatus.CREATED).send(requestApproved);
 });

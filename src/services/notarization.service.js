@@ -585,7 +585,11 @@ const approveSignatureByUser = async (documentId, signatureImage) => {
       throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has already approved the document');
     }
 
-    requestSignature.signatureImage = signatureImage;
+    if (signatureImage) {
+      const signatureImageUrl = await uploadFileToFirebase(signatureImage, 'signatures', documentId);
+      requestSignature.signatureImage = signatureImageUrl;
+    }
+
     requestSignature.approvalStatus.user = {
       approved: true,
       approvedAt: new Date(),
