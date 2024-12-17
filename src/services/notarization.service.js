@@ -188,11 +188,20 @@ const getHistoryWithStatus = async (userId) => {
         pipeline: [{ $sort: { updatedAt: -1 } }, { $limit: 1 }],
       },
     },
+    {
+      $lookup: {
+        from: 'requestSignature',
+        localField: '_id',
+        foreignField: 'documentId',
+        as: 'signature',
+      },
+    },
   ]);
 
   return history.map((doc) => ({
     ...doc,
     status: doc.status.length > 0 ? doc.status[0] : null,
+    signature: doc.signature.length > 0 ? doc.signature[0] : null,
   }));
 };
 
@@ -211,12 +220,12 @@ const getTotalDocuments = async (status) => {
     processing: () => StatusTracking.countDocuments({ status: 'processing' }),
     readyToSign: () =>
       RequestSignature.countDocuments({
-        'approvalStatus.notary.approved': true,
+        'approvalStatus.notary.approved': false,
         'approvalStatus.user.approved': true,
       }),
     pendingSignature: () =>
       RequestSignature.countDocuments({
-        $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+        'approvalStatus.user.approved': false,
       }),
   };
 
@@ -269,7 +278,7 @@ const getDocumentByRole = async ({ status, limit = 10, page = 1 }) => {
       },
       pendingSignature: async () => {
         const documents = await RequestSignature.find({
-          $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+          'approvalStatus.user.approved': false,
         })
           .populate('documentId')
           .skip(skipDocuments)
@@ -576,7 +585,11 @@ const approveSignatureByUser = async (documentId, signatureImage) => {
       throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has already approved the document');
     }
 
-    requestSignature.signatureImage = signatureImage;
+    if (signatureImage) {
+      const signatureImageUrl = await uploadFileToFirebase(signatureImage, 'signatures', documentId);
+      requestSignature.signatureImage = signatureImageUrl;
+    }
+
     requestSignature.approvalStatus.user = {
       approved: true,
       approvedAt: new Date(),
