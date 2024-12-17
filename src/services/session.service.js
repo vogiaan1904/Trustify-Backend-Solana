@@ -1088,7 +1088,7 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
 
     // send payment link to user
     const user = await userService.getUserById(session.createdBy);
-    await emailService.sendPaymentEmail(user.email, sessionId, paymentLinkResponse.checkoutUrl);
+    await emailService.sendPaymentEmail(user.email, sessionId, paymentLinkResponse);
 
     // Send email to all users in session
     const sessionUsers = session.users.map((user) => user.email);
