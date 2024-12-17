@@ -13,6 +13,8 @@ const config = require('../../config/config');
 const adminRoute = require('./admin.route');
 const paymentRoute = require('./payment.route');
 const emailRoute = require('./email.route');
+const notaryRoute = require('./notary.route');
+const userWalletRoute = require('./userWallet.route');
 // const { path } = require('../../app');
 
 const router = express.Router();
@@ -66,6 +68,14 @@ const defaultRoutes = [
   {
     path: '/email',
     route: emailRoute,
+  },
+  {
+    path: '/notary',
+    route: notaryRoute,
+  },
+  {
+    path: '/userWallet',
+    route: userWalletRoute,
   },
 ];
 

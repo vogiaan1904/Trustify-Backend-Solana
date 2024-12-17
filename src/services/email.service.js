@@ -49,7 +49,7 @@ const loadTemplate = async (templateName, replacements) => {
  */
 const sendResetPasswordEmail = async (to, token) => {
   const subject = 'Reset password';
-  const resetPasswordUrl = `http://localhost:3100/v1/auth/reset-password?token=${token}`;
+  const resetPasswordUrl = `${process.env.CLIENT_URL}/reset-password?resetPassword=${token}`;
   const html = await loadTemplate('reset_password', { resetPasswordUrl });
   await sendEmail(to, subject, html);
 };
@@ -63,7 +63,7 @@ const sendVerificationEmail = async (to, token) => {
 
 const sendInvitationEmail = async (to, sessionId) => {
   const subject = 'Session Invitation';
-  const joinSessionURL = `http://localhost:3100/v1/session/joinSession/${sessionId}`;
+  const joinSessionURL = `${process.env.CLIENT_URL}/notarization-session?sessionId=${sessionId}`;
   const html = await loadTemplate('invitation_email', { joinSessionURL });
   await sendEmail(to, subject, html);
 };
@@ -88,7 +88,7 @@ const sendDocumentUploadEmail = async (to, userName, documentId) => {
 };
 
 const sendDocumentStatusUpdateEmail = async (email, documentId, currentStatus, newStatus, feedback) => {
-  const subject = newStatus === 'rejected' ? 'Tài liệu bị từ chối' : 'Cập nhật trạng thái tài liệu';
+  const subject = newStatus === 'rejected' ? 'Document Rejected' : 'Document Status Updated';
 
   const replacements = {
     documentId,
@@ -109,6 +109,36 @@ const sendPaymentEmail = async (email, documentId, paymentLinkResponse) => {
   await sendEmail(email, subject, html);
 };
 
+const sendSessionStatusUpdateEmail = async (emails, sessionId, currentStatus, newStatus, feedback) => {
+  const validEmails = emails.filter((email) => email && typeof email === 'string' && email.trim() !== '');
+
+  if (validEmails.length === 0) {
+    console.warn('No valid email recipients for session status update');
+    return;
+  }
+
+  const subject = newStatus === 'rejected' ? 'Session Rejected' : 'Session Status Updated';
+
+  const replacements = {
+    sessionId,
+    currentStatus,
+    newStatus,
+    feedback: feedback || '',
+  };
+
+  const html = await loadTemplate('session_status_update', replacements);
+
+  const sendPromises = validEmails.map((email) => sendEmail(email, subject, html));
+
+  try {
+    await Promise.all(sendPromises);
+    console.log(`Status update emails sent for session ${sessionId}`);
+  } catch (error) {
+    console.error(`Failed to send status update emails for session ${sessionId}:`, error);
+    throw error;
+  }
+};
+
 module.exports = {
   transport,
   sendEmail,
@@ -118,4 +148,5 @@ module.exports = {
   sendDocumentUploadEmail,
   sendDocumentStatusUpdateEmail,
   sendPaymentEmail,
+  sendSessionStatusUpdateEmail,
 };

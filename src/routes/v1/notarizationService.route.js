@@ -20,11 +20,7 @@ router.post(
   notarizationServiceController.createNotarizationService
 );
 
-router.get(
-  '/get-all-notarization-services',
-  auth('getNotarizationServices'),
-  notarizationServiceController.getAllNotarizationServices
-);
+router.get('/get-all-notarization-services', notarizationServiceController.getAllNotarizationServices);
 
 router.get(
   '/get-notarization-service/:serviceId',

@@ -21,6 +21,7 @@ const createSession = {
         })
       )
       .required(),
+    amount: Joi.number().required(),
     createdBy: Joi.string(),
   }),
 };
@@ -84,21 +85,35 @@ const forwardSessionStatus = {
     userId: Joi.string().required(),
   }),
   body: Joi.object().keys({
-    action: Joi.string().required(),
-    feedBack: Joi.string(),
+    action: Joi.string().valid('accept', 'reject').required(),
+    feedback: Joi.string()
+      .allow('')
+      .when('action', {
+        is: 'reject',
+        then: Joi.string().min(1).required(),
+        otherwise: Joi.optional(),
+      }),
+    files: Joi.array().items(Joi.object()).optional(),
   }),
 };
 
 const approveSignatureSessionByUser = {
   body: Joi.object().keys({
     sessionId: Joi.string().required(),
-    amount: Joi.number().required(),
+    signatureImage: Joi.string().allow('', null).optional(),
   }),
 };
 
-const approveSignatureSessionBySecretary = {
+const approveSignatureSessionByNotary = {
   body: Joi.object().keys({
     sessionId: Joi.string().required(),
+  }),
+};
+
+const deleteFile = {
+  params: Joi.object().keys({
+    sessionId: Joi.string().custom(objectId).required(),
+    fileId: Joi.string().custom(objectId).required(),
   }),
 };
 
@@ -113,5 +128,6 @@ module.exports = {
   uploadSessionDocument,
   forwardSessionStatus,
   approveSignatureSessionByUser,
-  approveSignatureSessionBySecretary,
+  approveSignatureSessionByNotary,
+  deleteFile,
 };

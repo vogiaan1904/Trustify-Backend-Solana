@@ -119,7 +119,7 @@ const loginWithGoogle = catchAsync(async (req, res) => {
 
   await userService.updateUserById(user.id, { isEmailVerified: true });
 
-  res.redirect(`${process.env.CLIENT_URL}?token=${tokens.access.token}&refreshToken=${tokens.refresh.token}`);
+  res.redirect(`${process.env.CLIENT_URL}/third-party?token=${tokens.access.token}&refreshToken=${tokens.refresh.token}`);
 });
 
 module.exports = {

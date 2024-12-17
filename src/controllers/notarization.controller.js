@@ -69,13 +69,14 @@ const getDocumentByRole = catchAsync(async (req, res) => {
 
 const forwardDocumentStatus = catchAsync(async (req, res) => {
   const { documentId } = req.params;
-  const { action, feedback } = req.body;
+  const { action, feedback, files } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedback);
+
+  const updatedStatus = await notarizationService.forwardDocumentStatus(documentId, action, role, userId, feedback, files);
+
   res.status(httpStatus.OK).send(updatedStatus);
 });
-
 const getApproveHistory = catchAsync(async (req, res) => {
   const userId = req.user.id;
   const approveHistory = await notarizationService.getApproveHistory(userId);
@@ -101,6 +102,11 @@ const approveSignatureByNotary = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(requestApproved);
 });
 
+const getDocumentById = catchAsync(async (req, res) => {
+  const document = await notarizationService.getDocumentById(req.params.documentId);
+  res.status(httpStatus.OK).send(document);
+});
+
 module.exports = {
   createDocument,
   getHistory,
@@ -113,4 +119,5 @@ module.exports = {
   approveSignatureByUser,
   approveSignatureByNotary,
   getHistoryWithStatus,
+  getDocumentById,
 };

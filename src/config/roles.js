@@ -16,6 +16,9 @@ const allRoles = {
     'uploadSessionDocument',
     'sendSessionForNotarization',
     'getSessionStatus',
+    'getDocument',
+    'getWallet',
+    'transferNFT',
   ],
   admin: [
     'getUsers',
@@ -47,6 +50,8 @@ const allRoles = {
     'getPaymentTotalByNotarizationField',
     'getSessionStatus',
     'viewNotarizationHistoryByUserId',
+    'getDocument',
+    'getSessionsByStatus',
   ],
   notary: [
     'getDocumentsByRole',
@@ -55,10 +60,13 @@ const allRoles = {
     'joinSession',
     'getSessionBySessionId',
     'getSessionStatus',
-    'getSessionByRole',
+    'getSessionsByStatus',
     'forwardSessionStatus',
     'approveSignatureByNotary',
     'approveSignatureSessionNotary',
+    'approveSignatureSessionByNotary',
+    'notaryDashboard',
+    'getDocument',
   ],
 };
 

@@ -1,3 +1,5 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
 const httpStatus = require('http-status');
 const mongoose = require('mongoose');
 const {
@@ -14,8 +16,24 @@ const ApiError = require('../utils/ApiError');
 const { userService, notarizationService } = require('.');
 const emailService = require('./email.service');
 const { payOS } = require('../config/payos');
+const { bucket, downloadFile } = require('../config/firebase');
+const { uploadToIPFS, mintDocumentNFT, getTransactionData } = require('../config/blockchain');
+const userWalletService = require('./userWallet.service');
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const uploadFileToFirebase = async (file, rootFolder, folderName) => {
+  const fileName = `${file.originalname}`;
+  const fileRef = bucket.file(`${rootFolder}/${folderName}/${fileName}`);
+
+  try {
+    await fileRef.save(file.buffer, { contentType: file.mimetype });
+    return `https://storage.googleapis.com/${bucket.name}/${rootFolder}/${folderName}/${fileName}`;
+  } catch (error) {
+    console.error('Error uploading file:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload file');
+  }
+};
 
 const generateOrderCode = () => {
   const MAX_SAFE_INTEGER = 9007199254740991;
@@ -71,9 +89,20 @@ const findBySessionId = async (sessionId) => {
 };
 
 const createSession = async (sessionBody) => {
-  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, createdBy } = sessionBody;
+  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, createdBy, amount } =
+    sessionBody;
 
-  if (!sessionName || !notaryField || !notaryService || !startTime || !startDate || !endTime || !endDate || !users) {
+  if (
+    !sessionName ||
+    !notaryField ||
+    !notaryService ||
+    !startTime ||
+    !startDate ||
+    !endTime ||
+    !endDate ||
+    !users ||
+    !amount
+  ) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Missing required fields');
   }
 
@@ -107,17 +136,21 @@ const createSession = async (sessionBody) => {
   }
 
   const notaryFieldObj = {
-    name: fieldExists.name,
     _id: fieldExists._id,
+    name: fieldExists.name,
     description: fieldExists.description,
+    name_en: fieldExists.name_en,
+    code: fieldExists.code,
   };
 
   const notaryServiceObj = {
-    name: serviceExists.name,
     _id: serviceExists._id,
+    name: serviceExists.name,
+    fieldId: serviceExists.fieldId,
     description: serviceExists.description,
     price: serviceExists.price,
-    fieldId: serviceExists.fieldId,
+    required_documents: serviceExists.required_documents,
+    code: serviceExists.code,
   };
 
   if (!Array.isArray(users) || users.length === 0) {
@@ -150,6 +183,7 @@ const createSession = async (sessionBody) => {
       endDate,
       users: usersWithIds,
       createdBy,
+      amount,
       status: 'scheduled',
       createdAt: new Date(),
     };
@@ -402,10 +436,6 @@ const getSessionsByUserId = async (userId) => {
 
     const allSessions = [...sessionsCreated, ...joinedSessions];
 
-    if (allSessions.length === 0) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Sessions not found');
-    }
-
     const sessionCreators = await Promise.all(
       allSessions.map(async (session) => {
         const creator = await userService.getUserById(session.createdBy);
@@ -432,12 +462,27 @@ const getSessionBySessionId = async (sessionId, userId) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
   }
   const user = await User.findById(userId);
-  const isSessionCreator = session.createdBy.toString() === userId.toString();
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  const isSessionCreator = session.createdBy && session.createdBy.toString() === userId.toString();
   const isSessionUser = session.users.some((u) => u.email === user.email);
   if (!isSessionCreator && !isSessionUser) {
     throw new ApiError(httpStatus.FORBIDDEN, 'User does not have access to this session');
   }
-  return session;
+  const status = await SessionStatusTracking.findOne({ sessionId });
+
+  const files = isSessionCreator
+    ? session.files
+    : session.files.filter((file) => file.userId && file.userId.toString() === userId.toString());
+
+  return {
+    session: {
+      ...session.toObject(),
+      files,
+    },
+    status,
+  };
 };
 
 const uploadSessionDocument = async (sessionId, userId, files) => {
@@ -486,7 +531,8 @@ const uploadSessionDocument = async (sessionId, userId, files) => {
     }
 
     const newFiles = fileUrls.map((url, index) => ({
-      filename: `${Date.now()}-${files[index].originalname}-by-${userId}`,
+      userId,
+      filename: `${files[index].originalname}`,
       firebaseUrl: url,
       createAt: new Date(),
       uploadedBy: userId,
@@ -592,33 +638,98 @@ const getSessionStatus = async (sessionId) => {
   }
 };
 
-const getSessionByRole = async (role) => {
+const getTotalSessions = async (status) => {
+  const countQueries = {
+    processing: () => SessionStatusTracking.countDocuments({ status: 'processing' }),
+    readyToSign: () =>
+      RequestSessionSignature.countDocuments({
+        'approvalStatus.notary.approved': false,
+        'approvalStatus.user.approved': true,
+      }),
+    pendingSignature: () =>
+      RequestSessionSignature.countDocuments({
+        $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+      }),
+    default: () => Session.countDocuments(),
+  };
+
+  return countQueries[status]();
+};
+
+const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
   try {
-    let statusFilter = [];
+    const parsedLimit = Number(limit);
+    const parsedPage = Number(page);
 
-    if (role === 'notary') {
-      statusFilter = ['processing'];
-    } else if (role === 'secretary') {
-      statusFilter = ['pending', 'verification', 'digitalSignature'];
-    } else {
-      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
-    }
+    // Validate limit and page
+    const validatedLimit = Number.isNaN(parsedLimit) || parsedLimit <= 0 ? 10 : parsedLimit;
+    const validatedPage = Number.isNaN(parsedPage) || parsedPage <= 0 ? 1 : parsedPage;
 
-    const sessionStatusTrackings = await SessionStatusTracking.find({ status: { $in: statusFilter } });
+    const skipSessions = (validatedPage - 1) * validatedLimit;
 
-    const sessionIds = sessionStatusTrackings.map((tracking) => tracking.sessionId);
+    const statusQueries = {
+      processing: async () => {
+        const sessions = await SessionStatusTracking.find({ status: 'processing' })
+          .skip(skipSessions)
+          .limit(validatedLimit)
+          .populate('sessionId');
 
-    const sessions = await Session.find({ _id: { $in: sessionIds } });
+        return sessions.map((doc) => ({
+          ...doc.toObject(),
+          status: 'processing',
+        }));
+      },
+      readyToSign: async () => {
+        const sessions = await RequestSessionSignature.find({
+          'approvalStatus.notary.approved': false,
+          'approvalStatus.user.approved': true,
+        })
+          .populate('sessionId')
+          .skip(skipSessions)
+          .limit(validatedLimit)
+          .sort({ createdAt: -1 });
 
-    const result = sessions.map((doc) => {
-      const statusTracking = sessionStatusTrackings.find((tracking) => tracking.sessionId.toString() === doc._id.toString());
-      return {
-        ...doc.toObject(),
-        status: statusTracking.status,
-      };
-    });
+        return sessions.map((doc) => ({
+          ...doc.toObject(),
+          status: 'readyToSign',
+        }));
+      },
+      pendingSignature: async () => {
+        const sessions = await RequestSessionSignature.find({
+          $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+        })
+          .populate('sessionId')
+          .skip(skipSessions)
+          .limit(validatedLimit)
+          .sort({ createdAt: -1 });
 
-    return result;
+        return sessions.map((doc) => ({
+          ...doc.toObject(),
+          status: 'pendingSignature',
+        }));
+      },
+      default: async () => {
+        const sessions = await Session.find().skip(skipSessions).limit(validatedLimit);
+        return sessions.map((doc) => ({
+          ...doc.toObject(),
+          status: 'default',
+        }));
+      },
+    };
+
+    const sessions = await (status && statusQueries[status] ? statusQueries[status]() : statusQueries.default());
+
+    const totalSessions = await getTotalSessions(status || 'default');
+
+    return {
+      sessions,
+      pagination: {
+        page: validatedPage,
+        limit: validatedLimit,
+        totalPages: Math.ceil(totalSessions / validatedLimit),
+        totalSessions,
+      },
+    };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -628,53 +739,100 @@ const getSessionByRole = async (role) => {
   }
 };
 
-const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) => {
+const forwardSessionStatus = async (sessionId, action, role, userId, feedback, files) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
     }
 
-    const validStatuses = ['pending', 'verification', 'processing', 'digitalSignature', 'completed'];
+    const validStatuses = ['pending', 'processing', 'digitalSignature', 'completed'];
     const roleStatusMap = {
-      notary: ['processing'],
-      secretary: ['pending', 'verification', 'digitalSignature'],
+      notary: ['pending', 'processing', 'digitalSignature'],
     };
 
-    let newStatus;
     const currentStatus = await SessionStatusTracking.findOne({ sessionId }, 'status');
 
+    if (!currentStatus) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session status not found');
+    }
+    if (currentStatus.status === 'rejected') {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already been rejected');
+    }
+    if (!roleStatusMap[role]) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
+    }
+
+    let outputFiles = [];
+    if (files && files.length > 0) {
+      const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'outputs', sessionId)));
+
+      outputFiles = files.map((file, index) => ({
+        filename: `${Date.now()}-${file.originalname}`,
+        firebaseUrl: fileUrls[index],
+        transactionHash: null,
+        uploadedAt: new Date(),
+      }));
+
+      await Session.findByIdAndUpdate(
+        sessionId,
+        {
+          $push: {
+            output: {
+              $each: outputFiles,
+            },
+          },
+        },
+        { new: true }
+      );
+    }
+
+    let newStatus;
     if (action === 'accept') {
-      if (!currentStatus) {
-        throw new ApiError(httpStatus.NOT_FOUND, 'Session status not found');
-      }
       if (currentStatus.status === 'rejected') {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Session already been rejected');
       }
-      if (!roleStatusMap[role]) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
-      }
-      if (!roleStatusMap[role].includes(currentStatus.status)) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'You do not have permission to access these sessions');
-      }
       const currentStatusIndex = validStatuses.indexOf(currentStatus.status);
 
-      if (currentStatusIndex === -1) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid current status');
+      // Disallow forwarding from 'digitalSignature' to 'completed'
+      if (currentStatus.status === 'digitalSignature') {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot forward from digitalSignature to completed');
       }
+
       newStatus = validStatuses[currentStatusIndex + 1];
+      console.log(feedback);
       if (!newStatus) {
         throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already reached final status');
       }
     } else if (action === 'reject') {
+      if (!feedback) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Feedback is required for rejection');
+      }
       newStatus = 'rejected';
     } else {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid action provided');
+    }
+    if (newStatus === 'digitalSignature') {
+      const newRequestSignature = new RequestSessionSignature({
+        sessionId,
+        signatureImage: null,
+        approvalStatus: {
+          notary: {
+            approved: false,
+            approvedAt: null,
+          },
+          user: {
+            approved: false,
+            approvedAt: null,
+          },
+        },
+      });
+      await newRequestSignature.save();
     }
 
     const approveSessionHistory = new ApproveSessionHistory({
       userId,
       sessionId,
-      beforeStatus: (await SessionStatusTracking.findOne({ sessionId }, 'status')).status,
+      beforeStatus: currentStatus.status,
       afterStatus: newStatus,
     });
 
@@ -683,21 +841,11 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
     const updateData = {
       status: newStatus,
       updatedAt: new Date(),
+      ...(feedback && { feedback }),
     };
-
-    if (newStatus === 'rejected') {
-      if (!feedBack) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'feedBack is required for rejected status');
-      }
-      if (typeof feedBack !== 'string') {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid feedBack format');
-      }
-      updateData.feedBack = feedBack;
-    }
 
     const email = await Session.findOne({ _id: sessionId }, 'users email createdBy');
     if (!email) {
-      console.log('This is email', email);
       throw new ApiError(httpStatus.NOT_FOUND, 'Email not found');
     }
 
@@ -708,7 +856,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
       userEmails.push(creator.email);
     }
 
-    await emailService.sendDocumentStatusUpdateEmail(userEmails, sessionId, currentStatus.status, newStatus, feedBack);
+    await emailService.sendDocumentStatusUpdateEmail(userEmails, sessionId, currentStatus.status, newStatus, feedback);
 
     const result = await SessionStatusTracking.updateOne({ sessionId }, updateData);
 
@@ -719,6 +867,7 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
     return {
       message: `Session status updated to ${newStatus}`,
       sessionId,
+      outputFiles: outputFiles.length > 0 ? outputFiles : undefined,
     };
   } catch (error) {
     if (error instanceof ApiError) {
@@ -729,62 +878,86 @@ const forwardSessionStatus = async (sessionId, action, role, userId, feedBack) =
   }
 };
 
-const approveSignatureSessionByUser = async (sessionId, amount, signatureImage) => {
+const approveSignatureSessionByUser = async (sessionId, userId, signatureImage) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
-    const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
-
-    if (sessionStatusTracking.status !== 'digitalSignature') {
-      throw new ApiError(httpStatus.CONFLICT, 'Session is not ready for digital signature');
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
 
-    let requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
+    const isCreator = session.createdBy.toString() === userId.toString();
+    const signature = await RequestSessionSignature.findOne({ sessionId });
 
-    if (!requestSessionSignature) {
-      if (!signatureImage || signatureImage.length === 0) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'No signature image provided');
+    if (!signature) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found');
+    }
+
+    let uploadedImageUrl = null;
+    if (signatureImage) {
+      uploadedImageUrl = await notarizationService.uploadFileToFirebase(signatureImage, 'sessionSignatures', sessionId);
+    }
+
+    if (isCreator) {
+      signature.approvalStatus.creator = {
+        approved: true,
+        approvedAt: new Date(),
+        signatureImage: uploadedImageUrl, // Add signatureImage for creator
+      };
+    } else {
+      // Find or create user in the users array
+      const userIndex = signature.approvalStatus.users.findIndex((u) => u.email === user.email);
+
+      if (userIndex === -1) {
+        signature.approvalStatus.users.push({
+          _id: user._id,
+          email: user.email,
+          approved: true,
+          approvedAt: new Date(),
+          signatureImage: uploadedImageUrl,
+        });
+      } else {
+        signature.approvalStatus.users[userIndex] = {
+          _id: user._id,
+          email: user.email,
+          approved: true,
+          approvedAt: new Date(),
+          signatureImage: uploadedImageUrl,
+        };
       }
-
-      const newRequestSessionSignature = new RequestSessionSignature({
-        sessionId,
-        amount,
-        signatureImage,
-        approvalStatus: {
-          secretary: {
-            approved: false,
-            approvedAt: null,
-          },
-          user: {
-            approved: true,
-            approvedAt: new Date(),
-          },
-        },
-      });
-
-      await newRequestSessionSignature.save();
-      requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
     }
 
-    requestSessionSignature.signatureImage = signatureImage || requestSessionSignature.signatureImage;
+    await signature.save();
+    await session.save();
 
-    await requestSessionSignature.save();
-
-    return requestSessionSignature;
+    return {
+      message: 'Signature approved and uploaded successfully',
+      signature,
+    };
   } catch (error) {
+    console.error('Detailed error:', {
+      message: error.message,
+      stack: error.stack,
+    });
+
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve signature by user:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by user');
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while approving the signature');
   }
 };
-const approveSignatureSessionBySecretary = async (sessionId, userId) => {
+
+const approveSignatureSessionByNotary = async (sessionId, userId) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(sessionId)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid user ID');
     }
 
     const sessionStatusTracking = await SessionStatusTracking.findOne({ sessionId });
@@ -795,11 +968,7 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
 
     const requestSessionSignature = await RequestSessionSignature.findOne({ sessionId });
     if (!requestSessionSignature) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found. User has not approved the session yet');
-    }
-
-    if (!requestSessionSignature.approvalStatus.user.approved) {
-      throw new ApiError(httpStatus.CONFLICT, 'Cannot approve. User has not approved the session yet');
+      throw new ApiError(httpStatus.NOT_FOUND, 'Signature request not found');
     }
 
     const session = await Session.findById(sessionId);
@@ -807,17 +976,69 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
+    // Check if creator has signed
+    if (!requestSessionSignature.approvalStatus.creator || !requestSessionSignature.approvalStatus.creator.approved) {
+      throw new ApiError(httpStatus.CONFLICT, 'Session creator has not approved yet');
+    }
+
+    // Check if all users have signed
+    const allUsersSigned = requestSessionSignature.approvalStatus.users.every((user) => user.approved);
+    if (!allUsersSigned) {
+      throw new ApiError(httpStatus.CONFLICT, 'Not all users have signed the session');
+    }
+
     if (session.payment) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Session has already been paid');
     }
 
+    if (session.output && Array.isArray(session.output) && session.output.length > 0) {
+      for (const outputFile of session.output) {
+        // Download file from storage
+        const fileBuffer = await downloadFile(outputFile.firebaseUrl);
+        // Upload to IPFS
+        const ipfsUrl = await uploadToIPFS(fileBuffer, outputFile.filename);
+
+        // Mint NFT
+        const nftData = await mintDocumentNFT(ipfsUrl);
+        const transactionData = await getTransactionData(nftData.transactionHash);
+
+        // Update output file with transaction details
+        outputFile.transactionHash = transactionData.transactionHash;
+
+        // Add NFT to wallet of everyone in session
+        for (const user of session.users) {
+          await userWalletService.addNFTToWallet(user._id, {
+            transactionHash: transactionData.transactionHash,
+            filename: outputFile.filename,
+            amount: session.amount,
+            tokenId: transactionData.tokenId,
+            tokenURI: transactionData.tokenURI,
+            contractAddress: transactionData.contractAddress,
+          });
+        }
+
+        // mint NFT for creator
+        await userWalletService.addNFTToWallet(session.createdBy, {
+          transactionHash: transactionData.transactionHash,
+          filename: outputFile.filename,
+          amount: session.amount,
+          tokenId: transactionData.tokenId,
+          tokenURI: transactionData.tokenURI,
+          contractAddress: transactionData.contractAddress,
+        });
+      }
+
+      // Save updated document
+      await session.save();
+    }
+
     const payment = new Payment({
       orderCode: generateOrderCode(),
-      amount: session.notaryService.price * requestSessionSignature.amount,
+      amount: session.notaryService.price * session.amount * (session.users.length + 1),
       description: `Session: ${sessionId.toString().slice(-15)}`,
       returnUrl: `${process.env.SERVER_URL}/success.html`,
       cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
-      userId,
+      userId: session.createdBy,
       sessionId,
       serviceId: session.notaryService.id,
       fieldId: session.notaryField.id,
@@ -836,13 +1057,10 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
     payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
     await payment.save();
 
-    console.log(paymentLinkResponse);
-
-    session.payment = payment._id;
-    session.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    session.orderCode = payment.orderCode;
-    await session.save();
-    console.log(session);
+    // session.payment = payment._id;
+    // session.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    // session.orderCode = payment.orderCode;
+    // await session.save();
 
     await SessionStatusTracking.updateOne(
       { sessionId },
@@ -859,7 +1077,7 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
       afterStatus: 'completed',
     });
 
-    requestSessionSignature.approvalStatus.secretary = {
+    requestSessionSignature.approvalStatus.notary = {
       approved: true,
       approvedAt: new Date(),
     };
@@ -867,57 +1085,154 @@ const approveSignatureSessionBySecretary = async (sessionId, userId) => {
     await requestSessionSignature.save();
 
     await approveSessionHistory.save();
-    const user = await userService.getUserById(userId);
 
-    await emailService.sendPaymentEmail(user.email, session._id, paymentLinkResponse.checkoutUrl);
+    // send payment link to user
+    const user = await userService.getUserById(session.createdBy);
+    await emailService.sendPaymentEmail(user.email, sessionId, paymentLinkResponse);
+
+    // Send email to all users in session
+    const sessionUsers = session.users.map((user) => user.email);
+    const allEmails = [...new Set([...sessionUsers, user.email])];
+
+    await emailService.sendSessionStatusUpdateEmail(
+      allEmails,
+      sessionId,
+      'digitalSignature',
+      'completed',
+      'Session has been completed successfully'
+    );
 
     return {
-      message: 'Secretary approved and signed the session successfully',
+      message: 'Notary approved and signed the session successfully',
       sessionId,
     };
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
-    console.error('Error approve signature by secretary:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by secretary');
+    console.error('Error approve signature by notary:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to approve signature by notary');
   }
 };
 
-const autoForwardSessionStatus = async () => {
-  // try {
-  //   const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+const autoVerifySession = async () => {
+  try {
+    const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
 
-  //   const pendingSessions = await SessionStatusTracking.find({
-  //     status: 'pending',
-  //     updatedAt: { $lte: oneMinuteAgo },
-  //   });
+    const pendingDocuments = await SessionStatusTracking.aggregate([
+      {
+        $match: {
+          status: 'pending',
+          updatedAt: { $lt: oneMinuteAgo },
+        },
+      },
+      {
+        $lookup: {
+          from: 'sessions',
+          localField: 'sessionId',
+          foreignField: '_id',
+          as: 'sessionInfo',
+        },
+      },
+      { $unwind: '$sessionInfo' },
+    ]);
 
-  //   const updatePromises = pendingSessions.map(async (tracking) => {
-  //     const updatedTracking = {
-  //       ...tracking.toObject(),
-  //       status: 'verification',
-  //       updatedAt: new Date(),
-  //     };
-  //     await SessionStatusTracking.updateOne({ _id: tracking._id }, updatedTracking);
+    const updatePromises = pendingDocuments.map(async (tracking) => {
+      const session = tracking.sessionInfo;
 
-  //     const approveSessionHistory = new ApproveSessionHistory({
-  //       userId: null,
-  //       sessionId: tracking.sessionId,
-  //       beforeStatus: 'pending',
-  //       afterStatus: 'verification',
-  //     });
-  //     await approveSessionHistory.save();
-  //   });
+      if (!session?.notaryService?.required_documents) {
+        console.log(`Session ${tracking._id} lacks notarization requirements`);
+        return null;
+      }
 
-  //   console.log(`Auto-forwarded ${updatePromises.length} sessions from 'pending' to 'verification' status`);
+      const requiredDocs = session.notaryService.required_documents;
+      const existingFileNames = session.files.map((file) => file.filename);
 
-  //   await Promise.all(updatePromises);
-  // } catch (error) {
-  //   console.error('Error auto-forwarding sessions:', error.message);
-  // }
+      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
 
-  console.log('Auto-forwarding sessions is disabled');
+      const newStatus = missingDocs.length === 0 ? 'processing' : 'rejected';
+
+      await SessionStatusTracking.updateOne(
+        { _id: tracking._id },
+        {
+          $set: {
+            status: newStatus,
+            updatedAt: new Date(),
+            feedback: missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined,
+          },
+        }
+      );
+
+      const sessionUsers = session.users.map((user) => user.email);
+      const allEmails = [...new Set([...sessionUsers, session.createdBy.email])];
+
+      emailService.sendSessionStatusUpdateEmail(
+        allEmails,
+        session._id,
+        'pending',
+        newStatus,
+        missingDocs.length > 0 ? `Missing documents: ${missingDocs.join(', ')}` : undefined
+      );
+
+      await new ApproveSessionHistory({
+        userId: null,
+        sessionId: session._id,
+        beforeStatus: 'pending',
+        afterStatus: newStatus,
+        createdDate: new Date(),
+      }).save();
+
+      return {
+        sessionId: session._id,
+        status: newStatus,
+        missingDocs: missingDocs.length > 0 ? missingDocs : null,
+      };
+    });
+
+    const results = (await Promise.all(updatePromises)).filter(Boolean);
+
+    console.log(`Auto-verification completed: ${results.length} sessions processed`);
+    return results;
+  } catch (error) {
+    console.error('Auto-verification error:', error);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Session auto-verification failed');
+  }
+};
+
+const deleteFile = async (sessionId, fileId, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(sessionId) || !mongoose.Types.ObjectId.isValid(fileId)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID or file ID');
+  }
+
+  const session = await Session.findById(sessionId);
+  if (!session) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  const isSessionCreator = session.createdBy && session.createdBy.toString() === userId.toString();
+  const isSessionUser = session.users.some((u) => u.email === user.email);
+  if (!isSessionCreator && !isSessionUser) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'User does not have access to this session');
+  }
+
+  const fileIndex = session.files.findIndex((file) => file._id.toString() === fileId);
+  if (fileIndex === -1) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'File not found');
+  }
+
+  const file = session.files[fileIndex];
+  if (!isSessionCreator && (!file.userId || file.userId.toString() !== userId.toString())) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'User does not have permission to delete this file');
+  }
+
+  session.files.splice(fileIndex, 1);
+
+  await session.save();
 };
 
 module.exports = {
@@ -939,9 +1254,10 @@ module.exports = {
   sendSessionForNotarization,
   createSessionStatusTracking,
   getSessionStatus,
-  getSessionByRole,
+  getSessionsByStatus,
   forwardSessionStatus,
   approveSignatureSessionByUser,
-  approveSignatureSessionBySecretary,
-  autoForwardSessionStatus,
+  approveSignatureSessionByNotary,
+  autoVerifySession,
+  deleteFile,
 };

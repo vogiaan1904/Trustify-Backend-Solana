@@ -5,7 +5,7 @@ const { sessionService, emailService } = require('../services');
 const { addUserToSession: addUserToSessionValidation } = require('../validations/session.validation');
 
 const createSession = catchAsync(async (req, res) => {
-  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users } = req.body;
+  const { sessionName, notaryField, notaryService, startTime, startDate, endTime, endDate, users, amount } = req.body;
   const createdBy = req.user.id;
   await sessionService.validateEmails(users.map((u) => u.email));
   const [hours, minutes] = startTime.split(':').map(Number);
@@ -23,6 +23,7 @@ const createSession = catchAsync(async (req, res) => {
     endTime,
     endDate: endDateTime,
     users,
+    amount,
     createdBy,
   });
   await Promise.all(session.users.map((userItem) => emailService.sendInvitationEmail(userItem.email, session._id)));
@@ -113,31 +114,47 @@ const getSessionStatus = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(sessionStatusTracking);
 });
 
-const getSessionByRole = catchAsync(async (req, res) => {
-  const { user } = req;
-  const sessions = await sessionService.getSessionByRole(user.role);
-  res.status(httpStatus.OK).send(sessions);
+const getSessionsByStatus = catchAsync(async (req, res) => {
+  const filter = pick(req.query, ['status']);
+  const options = pick(req.query, ['limit', 'page']);
+
+  const result = await sessionService.getSessionsByStatus({
+    ...filter,
+    ...options,
+  });
+
+  res.status(httpStatus.OK).send(result);
 });
 
 const forwardSessionStatus = catchAsync(async (req, res) => {
   const { sessionId } = req.params;
-  const { action, feedBack } = req.body;
+  const { action, feedback, files } = req.body;
   const { role } = req.user;
   const userId = req.user.id;
-  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedBack);
+  const updatedStatus = await sessionService.forwardSessionStatus(sessionId, action, role, userId, feedback, files);
   res.status(httpStatus.OK).send(updatedStatus);
 });
 
 const approveSignatureSessionByUser = catchAsync(async (req, res) => {
-  const { sessionId, amount } = req.body;
-  const signatureImage = req.file.originalname;
-  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, amount, signatureImage);
+  const { sessionId } = req.body;
+  const userId = req.user.id;
+  console.log(req.file);
+  const requestApproved = await sessionService.approveSignatureSessionByUser(sessionId, userId, req.file);
   res.status(httpStatus.CREATED).send(requestApproved);
 });
 
-const approveSignatureSessionBySecretary = catchAsync(async (req, res) => {
-  const requestApproved = await sessionService.approveSignatureSessionBySecretary(req.body.sessionId, req.user.id);
+const approveSignatureSessionByNotary = catchAsync(async (req, res) => {
+  const requestApproved = await sessionService.approveSignatureSessionByNotary(req.body.sessionId, req.user.id);
   res.status(httpStatus.OK).send(requestApproved);
+});
+
+const deleteFile = catchAsync(async (req, res) => {
+  const { sessionId, fileId } = req.params;
+  const userId = req.user.id;
+
+  await sessionService.deleteFile(sessionId, fileId, userId);
+
+  res.status(httpStatus.NO_CONTENT).send();
 });
 
 module.exports = {
@@ -154,8 +171,9 @@ module.exports = {
   uploadSessionDocument,
   sendSessionForNotarization,
   getSessionStatus,
-  getSessionByRole,
+  getSessionsByStatus,
   forwardSessionStatus,
   approveSignatureSessionByUser,
-  approveSignatureSessionBySecretary,
+  approveSignatureSessionByNotary,
+  deleteFile,
 };
