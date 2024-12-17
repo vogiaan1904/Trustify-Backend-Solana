@@ -7,6 +7,7 @@ const mockRouteInstance = {
   post: jest.fn().mockReturnThis(),
   get: jest.fn().mockReturnThis(),
   patch: jest.fn().mockReturnThis(),
+  delete: jest.fn().mockReturnThis(),
 };
 
 const mockRouter = {
@@ -21,16 +22,16 @@ const mockUpload = {
   none: jest.fn().mockReturnValue('upload.none middleware'),
 };
 
-// Setup mocks
-jest.mock('express', () => ({
-  Router: jest.fn(() => mockRouter),
-}));
-
 jest.mock('multer', () => {
   const multer = jest.fn(() => mockUpload);
   multer.memoryStorage = jest.fn(() => 'memoryStorage');
   return multer;
 });
+
+// Setup mocks
+jest.mock('express', () => ({
+  Router: jest.fn(() => mockRouter),
+}));
 
 jest.mock('../../../src/middlewares/auth', () => jest.fn((right) => `auth_${right}`));
 
@@ -49,12 +50,14 @@ jest.mock('../../../src/controllers/session.controller', () => ({
   getSessionStatus: jest.fn(),
   getSessionsByStatus: jest.fn(),
   sendSessionForNotarization: jest.fn(),
+  deleteFile: jest.fn(),
 }));
+
+require('../../../src/routes/v1/session.route');
 
 describe('Session Routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    require('../../../src/routes/v1/session.route');
   });
 
   describe('Route Registration', () => {
@@ -67,6 +70,7 @@ describe('Session Routes', () => {
       expect(mockRouter.route).toHaveBeenCalledWith('/getSessionsByDate');
       expect(mockRouter.route).toHaveBeenCalledWith('/getActiveSessions');
       expect(mockRouter.route).toHaveBeenCalledWith('/upload-session-document/:sessionId');
+      expect(mockRouter.route).toHaveBeenCalledWith('/:sessionId/files/:fileId');
     });
   });
 });

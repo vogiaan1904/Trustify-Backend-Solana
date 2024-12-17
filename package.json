@@ -13,7 +13,7 @@
   "scripts": {
     "start": "pm2 start ecosystem.config.json --no-daemon",
     "dev": "cross-env NODE_ENV=development nodemon src/index.js",
-    "test": "jest -i --colors --verbose --detectOpenHandles",
+    "test": "cross-env NODE_ENV=test jest -i --colors --verbose --detectOpenHandles",
     "test:watch": "jest -i --watchAll",
     "coverage": "jest -i --coverage",
     "coverage:coveralls": "jest -i --coverage --coverageReporters=text-lcov | coveralls",
@@ -102,7 +102,7 @@
     "husky": "7.0.4",
     "jest": "^29.7.0",
     "lint-staged": "^11.0.0",
-    "mongodb-memory-server": "^10.0.1",
+    "mongodb-memory-server": "^10.1.2",
     "node-mocks-http": "^1.8.0",
     "nodemon": "^2.0.0",
     "prettier": "^2.0.5",
