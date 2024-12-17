@@ -1,5 +1,5 @@
 const httpStatus = require('http-status');
-const { UserWallet } = require('../models');
+const { UserWallet, User } = require('../models');
 const ApiError = require('../utils/ApiError'); // Adjust the path as necessary
 
 /**
@@ -79,7 +79,7 @@ const getWallet = async (userId) => {
  * @returns {Promise<void>}
  * @throws {ApiError} - If transfer fails.
  */
-const transferNFT = async (fromUserId, toUserId, transactionHash, amount) => {
+const transferNFT = async (fromUserId, toUserEmail, transactionHash, amount) => {
   try {
     // Validate amount
     if (amount <= 0) {
@@ -105,10 +105,16 @@ const transferNFT = async (fromUserId, toUserId, transactionHash, amount) => {
     nftItem.amount -= amount;
     await fromWallet.save();
 
-    let toWallet = await UserWallet.findOne({ user: toUserId });
+    // Find recipient user by email
+    const toUser = await User.findOne({ email: toUserEmail });
+    if (!toUser) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Recipient user not found');
+    }
+
+    let toWallet = await UserWallet.findOne({ user: toUser._id });
     if (!toWallet) {
       toWallet = new UserWallet({
-        user: toUserId,
+        user: toUser._id,
         nftItems: [{ ...nftItem.toObject(), amount }],
       });
     } else {

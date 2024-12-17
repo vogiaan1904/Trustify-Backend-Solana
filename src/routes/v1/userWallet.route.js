@@ -1,4 +1,3 @@
-// src/routes/v1/userWallet.route.js
 const express = require('express');
 const userWalletController = require('../../controllers/userWallet.controller');
 const auth = require('../../middlewares/auth');
@@ -21,26 +20,22 @@ const router = express.Router();
  *     security:
  *       - bearerAuth: []
  *     responses:
- *       200:
- *         description: User wallet retrieved successfully
+ *       "200":
+ *         description: OK
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 userId:
- *                   type: string
- *                   description: User ID
- *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Not found
- *       500:
- *         description: Internal server error
+ *               $ref: '#/components/schemas/UserWallet'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
  */
 
 /**
@@ -59,21 +54,21 @@ const router = express.Router();
  *             type: object
  *             required:
  *               - transactionHash
- *               - toUserId
+ *               - toUserEmail
  *               - amount
  *             properties:
  *               transactionHash:
  *                 type: string
  *                 description: The transaction hash of the NFT to transfer
- *               toUserId:
+ *               toUserEmail:
  *                 type: string
- *                 description: The User ID of the recipient
+ *                 description: The email of the recipient
  *               amount:
  *                 type: number
  *                 description: The amount of NFTs to transfer
  *             example:
- *               transactionHash: '0x1234567890abcdef'
- *               toUserId: '5ebac534954b54139806c112'
+ *               transactionHash: '0x06c1e35477e2f84f17fb64cb37779c173dd04033150a4903c74ff23ced618f60'
+ *               toUserEmail: 'truonglevinhphuc2006@gmail.com'
  *               amount: 2
  *     responses:
  *       "200":
@@ -87,13 +82,15 @@ const router = express.Router();
  *                   type: string
  *                   example: NFT transferred successfully
  *       "400":
- *         description: Bad Request - Invalid input data
+ *         $ref: '#/components/responses/BadRequest'
  *       "401":
- *         description: Unauthorized access
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
  *       "404":
- *         description: User wallet or NFT not found
+ *         $ref: '#/components/responses/NotFound'
  *       "500":
- *         description: Internal Server Error
+ *         $ref: '#/components/responses/InternalServerError'
  */
 
 /**
