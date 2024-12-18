@@ -95,10 +95,19 @@ const getSessionBySessionId = catchAsync(async (req, res) => {
 });
 
 const uploadSessionDocument = catchAsync(async (req, res) => {
-  const { sessionId } = req.params;
   const userId = req.user.id;
-  const uploadedSessionDocument = await sessionService.uploadSessionDocument(sessionId, userId, req.files);
-  res.status(httpStatus.OK).send(uploadedSessionDocument);
+  const { sessionId } = req.params;
+
+  const sessionDocument = await sessionService.uploadSessionDocument(
+    sessionId,
+    { ...req.body },
+    req.files,
+    req.body.fileIds,
+    req.body.customFileNames,
+    userId
+  );
+
+  res.status(httpStatus.CREATED).send(sessionDocument);
 });
 
 const sendSessionForNotarization = catchAsync(async (req, res) => {

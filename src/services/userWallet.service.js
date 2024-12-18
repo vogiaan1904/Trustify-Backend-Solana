@@ -155,7 +155,7 @@ const decreaseNFTAmount = async (userId, fileIds) => {
     fileIds.forEach((fileId) => {
       const nftItem = userWallet.nftItems.find((item) => item._id.toString() === fileId);
       if (nftItem) {
-        if (nftItem.amount > 1) {
+        if (nftItem.amount >= 1) {
           nftItem.amount -= 1;
         } else {
           throw new ApiError(
