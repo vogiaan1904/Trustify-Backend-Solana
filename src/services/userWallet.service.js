@@ -1,6 +1,6 @@
 const httpStatus = require('http-status');
 const { UserWallet, User } = require('../models');
-const ApiError = require('../utils/ApiError'); // Adjust the path as necessary
+const ApiError = require('../utils/ApiError');
 
 /**
  * Adds an NFT to the user's wallet.
@@ -136,8 +136,51 @@ const transferNFT = async (fromUserId, toUserEmail, transactionHash, amount) => 
   }
 };
 
+/**
+ * Decreases the amount of specified NFTs in the user's wallet.
+ *
+ * @param {ObjectId} userId - The ID of the user.
+ * @param {Array<string>} fileIds - The list of file IDs whose amounts need to be decreased.
+ * @returns {Promise<void>}
+ * @throws {ApiError} - If the operation fails.
+ */
+const decreaseNFTAmount = async (userId, fileIds) => {
+  try {
+    const userWallet = await UserWallet.findOne({ user: userId });
+
+    if (!userWallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User wallet not found');
+    }
+
+    fileIds.forEach((fileId) => {
+      const nftItem = userWallet.nftItems.find((item) => item._id.toString() === fileId);
+      if (nftItem) {
+        if (nftItem.amount >= 1) {
+          nftItem.amount -= 1;
+        } else {
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            `Cannot decrease amount for NFT with ID ${fileId} as it is less than or equal to 1`
+          );
+        }
+      } else {
+        throw new ApiError(httpStatus.BAD_REQUEST, `NFT with ID ${fileId} not found in user wallet`);
+      }
+    });
+
+    await userWallet.save();
+  } catch (error) {
+    console.error('Error decreasing NFT amount:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to decrease NFT amount');
+  }
+};
+
 module.exports = {
   addNFTToWallet,
   getWallet,
   transferNFT,
+  decreaseNFTAmount,
 };

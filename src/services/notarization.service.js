@@ -31,9 +31,9 @@ const uploadFileToFirebase = async (file, rootFolder, folderName) => {
   }
 };
 
-const createDocument = async (documentBody, files, userId) => {
+const createDocument = async (documentBody, files, fileIds, customFileNames, userId) => {
   try {
-    if (!files || files.length === 0) {
+    if ((!files || files.length === 0) && (!fileIds || fileIds.length === 0)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
     }
 
@@ -52,25 +52,6 @@ const createDocument = async (documentBody, files, userId) => {
     if (String(notarizationServiceDoc.fieldId) !== String(notarizationFieldDoc._id)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service does not match the provided field');
     }
-
-    // if (notarizationFieldDoc.name !== notarizationField.name) {
-    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field name does not match');
-    // }
-
-    // if (notarizationFieldDoc.description !== notarizationField.description) {
-    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization field description does not match');
-    // }
-    // if (notarizationServiceDoc.name !== notarizationService.name) {
-    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service name does not match');
-    // }
-
-    // if (notarizationServiceDoc.description !== notarizationService.description) {
-    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service description does not match');
-    // }
-
-    // if (notarizationServiceDoc.price !== notarizationService.price) {
-    //   throw new ApiError(httpStatus.BAD_REQUEST, 'Notarization service price does not match');
-    // }
 
     const newDocument = new Document({
       files: [],
@@ -101,13 +82,37 @@ const createDocument = async (documentBody, files, userId) => {
       amount,
     });
 
-    const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
-    const formattedFiles = files.map((file, index) => ({
-      filename: `${file.originalname}`,
-      firebaseUrl: fileUrls[index],
-    }));
+    // Handle files from user wallet
+    if (fileIds && fileIds.length > 0) {
+      const userWallet = await userWalletService.getWallet(userId);
+      const walletItems = userWallet.nftItems.filter((item) => fileIds.includes(item._id.toString()));
 
-    newDocument.files = formattedFiles;
+      if (walletItems.length !== fileIds.length) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Some files are not found in the user wallet');
+      }
+
+      const walletFiles = walletItems.map((item, index) => ({
+        _id: item._id,
+        filename: customFileNames && customFileNames[index] ? customFileNames[index] : item.filename,
+        firebaseUrl: item.tokenURI,
+      }));
+
+      await userWalletService.decreaseNFTAmount(userId, fileIds);
+
+      newDocument.files.push(...walletFiles);
+    }
+
+    // Handle file uploads to Firebase
+    if (files && files.length > 0) {
+      const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'documents', newDocument._id)));
+      const uploadedFiles = files.map((file, index) => ({
+        filename: `${file.originalname}`,
+        firebaseUrl: fileUrls[index],
+      }));
+
+      newDocument.files.push(...uploadedFiles);
+    }
+
     await newDocument.save();
 
     await emailService.sendDocumentUploadEmail(requesterInfo.email, requesterInfo.fullName, newDocument._id);
@@ -121,7 +126,6 @@ const createDocument = async (documentBody, files, userId) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload document');
   }
 };
-
 const createStatusTracking = async (documentId, status) => {
   try {
     const statusTracking = new StatusTracking({
@@ -802,6 +806,38 @@ const autoVerifyDocument = async () => {
     const updatePromises = pendingDocuments.map(async (tracking) => {
       const document = tracking.documentInfo;
 
+      // Check if any file URL contains IPFS gateway
+      const hasIPFSFile = document.files.some((file) => file.firebaseUrl?.includes('https://gateway.pinata.cloud/ipfs/'));
+
+      // If has IPFS file, automatically move to processing
+      if (hasIPFSFile) {
+        await StatusTracking.updateOne(
+          { _id: tracking._id },
+          {
+            $set: {
+              status: 'processing',
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        emailService.sendDocumentStatusUpdateEmail(document.requesterInfo.email, document._id, 'pending', 'processing');
+
+        await new ApproveHistory({
+          userId: null,
+          documentId: document._id,
+          beforeStatus: 'pending',
+          afterStatus: 'processing',
+          createdDate: new Date(),
+        }).save();
+
+        return {
+          documentId: document._id,
+          status: 'processing',
+        };
+      }
+
+      // Normal verification flow for non-IPFS files
       if (!document?.notarizationService?.required_documents) {
         console.log(`Document ${tracking._id} lacks notarization requirements`);
         return null;

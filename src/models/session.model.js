@@ -67,13 +67,13 @@ const sessionSchema = new mongoose.Schema({
           required: false,
           trim: true,
         },
-        createAt: {
+        createdAt: {
           type: Date,
           required: false,
         },
       },
     ],
-    required: false,
+    default: [],
   },
   output: [
     {

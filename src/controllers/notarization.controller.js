@@ -15,7 +15,13 @@ const createDocument = catchAsync(async (req, res) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid email address');
   }
 
-  const document = await notarizationService.createDocument({ ...req.body }, req.files, userId);
+  const document = await notarizationService.createDocument(
+    { ...req.body },
+    req.files,
+    req.body.fileIds,
+    req.body.customFileNames,
+    userId
+  );
 
   await notarizationService.createStatusTracking(document._id, 'pending');
 

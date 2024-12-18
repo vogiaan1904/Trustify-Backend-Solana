@@ -268,6 +268,7 @@ const deleteUserOutOfSession = async (sessionId, email, userId) => {
   await session.save();
   return session;
 };
+
 const joinSession = async (sessionId, action, userId) => {
   if (!mongoose.Types.ObjectId.isValid(sessionId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
@@ -283,6 +284,10 @@ const joinSession = async (sessionId, action, userId) => {
   const userIndex = session.users.findIndex((userItem) => userItem.email === user.email);
   if (userIndex === -1) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found in session');
+  }
+  const userStatus = session.users[userIndex].status;
+  if (userStatus === 'accepted' || userStatus === 'rejected') {
+    throw new ApiError(httpStatus.BAD_REQUEST, `User already ${userStatus}`);
   }
   if (action === 'accept') {
     session.users[userIndex].status = 'accepted';
@@ -430,29 +435,43 @@ const getSessionsByUserId = async (userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
 
-    const sessionsCreated = await Session.find({ createdBy: userId }).lean();
+    const sessionsCreated = await Session.find({
+      createdBy: userId,
+    }).lean();
 
-    const joinedSessions = await Session.find({ 'users.email': user.email }).lean();
+    const joinedSessions = await Session.find({
+      'users.email': user.email,
+    }).lean();
 
     const allSessions = [...sessionsCreated, ...joinedSessions];
 
-    const sessionCreators = await Promise.all(
+    const sessionDetails = await Promise.all(
       allSessions.map(async (session) => {
         const creator = await userService.getUserById(session.createdBy);
+        const status = await SessionStatusTracking.findOne({ sessionId: session._id });
+        const signature = await RequestSessionSignature.findOne({ sessionId: session._id });
+
+        let filteredFiles = session.files;
+        if (session.createdBy.toString() !== userId.toString()) {
+          filteredFiles = session.files.filter((file) => file.userId && file.userId.toString() === userId.toString());
+        }
+
         return {
           ...session,
           creator: creator ? { _id: creator._id, email: creator.email, name: creator.name } : null,
+          status: status ? status.status : 'unknown',
+          signature: signature ? signature.approvalStatus : {},
+          files: filteredFiles,
         };
       })
     );
 
-    return { results: sessionCreators };
+    return { results: sessionDetails };
   } catch (err) {
     console.error('Error retrieving sessions by user ID:', err);
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while retrieving sessions');
   }
 };
-
 const getSessionBySessionId = async (sessionId, userId) => {
   if (!mongoose.Types.ObjectId.isValid(sessionId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
@@ -471,6 +490,7 @@ const getSessionBySessionId = async (sessionId, userId) => {
     throw new ApiError(httpStatus.FORBIDDEN, 'User does not have access to this session');
   }
   const status = await SessionStatusTracking.findOne({ sessionId });
+  const signature = await RequestSessionSignature.findOne({ sessionId });
 
   const files = isSessionCreator
     ? session.files
@@ -482,75 +502,75 @@ const getSessionBySessionId = async (sessionId, userId) => {
       files,
     },
     status,
+    signature,
   };
 };
 
-const uploadSessionDocument = async (sessionId, userId, files) => {
+const uploadSessionDocument = async (sessionId, documentBody, files, fileIds, customFileNames, userId) => {
   try {
-    if (!files || files.length === 0) {
+    if ((!files || files.length === 0) && (!fileIds || fileIds.length === 0)) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'No files provided');
     }
 
-    if (!mongoose.Types.ObjectId.isValid(sessionId)) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
-    }
-
-    const session = await findBySessionId(sessionId);
+    const session = await Session.findById(sessionId);
     if (!session) {
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
-    const user = await userService.getUserById(userId);
-    if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    const status = await SessionStatusTracking.findOne({ sessionId });
+    if (status && status.status !== 'pending') {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Session is not pending');
     }
 
-    const isSessionUser = session.users.some((u) => u.email === user.email) || session.createdBy.equals(userId);
-    if (!isSessionUser) {
-      throw new ApiError(httpStatus.FORBIDDEN, 'User is not part of this session');
-    }
-
-    if (!session.createdBy.equals(userId)) {
-      const isUserAccepted = session.users.some((u) => u.email === user.email && u.status === 'accepted');
-      if (!isUserAccepted) {
-        throw new ApiError(httpStatus.FORBIDDEN, 'User is not accepted as part of this session');
-      }
-    }
-
-    const existingStatus = await SessionStatusTracking.findOne({ sessionId });
-    if (existingStatus) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Session already sent for notarization');
-    }
-
-    const fileUrls = await Promise.all(
-      files.map((file) => notarizationService.uploadFileToFirebase(file, 'sessionDocuments', sessionId))
-    );
-
-    if (!session.files) {
-      session.files = [];
-    }
-
-    const newFiles = fileUrls.map((url, index) => ({
+    const newDocument = {
       userId,
-      filename: `${files[index].originalname}`,
-      firebaseUrl: url,
-      createAt: new Date(),
-      uploadedBy: userId,
-    }));
+      files: [],
+      createdAt: Date.now(),
+    };
 
-    session.files.push(...newFiles);
+    // Handle files from user wallet
+    if (fileIds && fileIds.length > 0) {
+      const userWallet = await userWalletService.getWallet(userId);
+      const walletItems = userWallet.nftItems.filter((item) => fileIds.includes(item._id.toString()));
+
+      if (walletItems.length !== fileIds.length) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Some files are not found in the user wallet');
+      }
+
+      const walletFiles = walletItems.map((item, index) => ({
+        _id: item._id,
+        userId,
+        filename: customFileNames && customFileNames[index] ? customFileNames[index] : item.filename,
+        firebaseUrl: item.tokenURI,
+        createdAt: Date.now(),
+      }));
+
+      newDocument.files.push(...walletFiles);
+
+      // Decrease the amount of NFTs in the user's wallet
+      await userWalletService.decreaseNFTAmount(userId, fileIds);
+    }
+
+    // Handle file uploads to Firebase
+    if (files && files.length > 0) {
+      const fileUrls = await Promise.all(files.map((file) => uploadFileToFirebase(file, 'session-documents', sessionId)));
+      const uploadedFiles = files.map((file, index) => ({
+        userId,
+        filename: `${file.originalname}`,
+        firebaseUrl: fileUrls[index],
+        createdAt: Date.now(),
+      }));
+
+      newDocument.files.push(...uploadedFiles);
+    }
+
+    session.files.push(...newDocument.files);
     await session.save();
 
-    return {
-      message: 'Files uploaded successfully',
-      uploadedFiles: newFiles,
-    };
+    return newDocument;
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    console.error('Error uploading files to session:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'An error occurred while uploading files');
+    console.error('Error uploading session document:', error.message);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload session document');
   }
 };
 
@@ -976,15 +996,21 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
-    // Check if creator has signed
+    // Check if the creator has signed
     if (!requestSessionSignature.approvalStatus.creator || !requestSessionSignature.approvalStatus.creator.approved) {
       throw new ApiError(httpStatus.CONFLICT, 'Session creator has not approved yet');
     }
 
-    // Check if all users have signed
-    const allUsersSigned = requestSessionSignature.approvalStatus.users.every((user) => user.approved);
-    if (!allUsersSigned) {
-      throw new ApiError(httpStatus.CONFLICT, 'Not all users have signed the session');
+    // Check if all users have signed, if there are users
+    if (session.users && session.users.length > 0) {
+      if (!requestSessionSignature.approvalStatus.users || requestSessionSignature.approvalStatus.users.length === 0) {
+        throw new ApiError(httpStatus.CONFLICT, 'No users have signed the session');
+      }
+
+      const allUsersSigned = requestSessionSignature.approvalStatus.users.every((user) => user.approved);
+      if (!allUsersSigned) {
+        throw new ApiError(httpStatus.CONFLICT, 'Not all users have signed the session');
+      }
     }
 
     if (session.payment) {
@@ -1017,7 +1043,7 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
           });
         }
 
-        // mint NFT for creator
+        // Mint NFT for creator
         await userWalletService.addNFTToWallet(session.createdBy, {
           transactionHash: transactionData.transactionHash,
           filename: outputFile.filename,
@@ -1057,11 +1083,6 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
     payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
     await payment.save();
 
-    // session.payment = payment._id;
-    // session.checkoutUrl = paymentLinkResponse.checkoutUrl;
-    // session.orderCode = payment.orderCode;
-    // await session.save();
-
     await SessionStatusTracking.updateOne(
       { sessionId },
       {
@@ -1086,7 +1107,7 @@ const approveSignatureSessionByNotary = async (sessionId, userId) => {
 
     await approveSessionHistory.save();
 
-    // send payment link to user
+    // send payment link to creator
     const user = await userService.getUserById(session.createdBy);
     await emailService.sendPaymentEmail(user.email, sessionId, paymentLinkResponse);
 
@@ -1148,8 +1169,45 @@ const autoVerifySession = async () => {
       const requiredDocs = session.notaryService.required_documents;
       const existingFileNames = session.files.map((file) => file.filename);
 
-      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
+      // Check for IPFS files
+      const hasIPFSFiles = session.files.some((file) => file.firebaseUrl.startsWith('https://gateway.pinata.cloud/ipfs'));
 
+      if (hasIPFSFiles) {
+        // Automatically approve if there are IPFS files
+        const newStatus = 'processing';
+
+        await SessionStatusTracking.updateOne(
+          { _id: tracking._id },
+          {
+            $set: {
+              status: newStatus,
+              updatedAt: new Date(),
+              feedback: 'IPFS files detected',
+            },
+          }
+        );
+
+        const sessionUsers = session.users.map((user) => user.email);
+        const allEmails = [...new Set([...sessionUsers, session.createdBy.email])];
+
+        emailService.sendSessionStatusUpdateEmail(allEmails, session._id, 'pending', newStatus);
+
+        await new ApproveSessionHistory({
+          userId: null,
+          sessionId: session._id,
+          beforeStatus: 'pending',
+          afterStatus: newStatus,
+          createdDate: new Date(),
+        }).save();
+
+        return {
+          sessionId: session._id,
+          status: newStatus,
+          missingDocs: null,
+        };
+      }
+
+      const missingDocs = requiredDocs.filter((reqDoc) => !existingFileNames.some((filename) => filename.includes(reqDoc)));
       const newStatus = missingDocs.length === 0 ? 'processing' : 'rejected';
 
       await SessionStatusTracking.updateOne(
@@ -1164,7 +1222,8 @@ const autoVerifySession = async () => {
       );
 
       const sessionUsers = session.users.map((user) => user.email);
-      const allEmails = [...new Set([...sessionUsers, session.createdBy.email])];
+      const creator = await User.findById(session.createdBy).lean();
+      const allEmails = [...new Set([...sessionUsers, creator.email])];
 
       emailService.sendSessionStatusUpdateEmail(
         allEmails,
