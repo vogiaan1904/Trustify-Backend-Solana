@@ -6,6 +6,7 @@ const validate = require('../../middlewares/validate');
 const notarizationValidation = require('../../validations/notarization.validation');
 const notarizationController = require('../../controllers/notarization.controller');
 const ApiError = require('../../utils/ApiError');
+const parseJson = require('../../middlewares/parseJson');
 
 const router = express.Router();
 const upload = multer({
@@ -33,21 +34,18 @@ const upload = multer({
 router.route('/upload-files').post(
   auth('uploadDocuments'),
   upload.array('files'),
+  parseJson,
   (req, res, next) => {
     console.log('Uploaded files:', req.files);
-    req.body.notarizationService = JSON.parse(req.body.notarizationService);
-    req.body.notarizationField = JSON.parse(req.body.notarizationField);
-    req.body.requesterInfo = JSON.parse(req.body.requesterInfo);
     req.body.amount = Number(req.body.amount);
-
     req.body.files = req.files.map((file) => file.originalname);
-
+    req.body.fileIds = req.body.fileIds ? JSON.parse(req.body.fileIds) : [];
+    req.body.customFileNames = req.body.customFileNames ? JSON.parse(req.body.customFileNames) : [];
     next();
   },
   validate(notarizationValidation.createDocument),
   notarizationController.createDocument
 );
-
 router
   .route('/document/:documentId')
   .get(auth('getDocument'), validate(notarizationValidation.getDocument), notarizationController.getDocumentById);
@@ -144,8 +142,7 @@ router
  *                     example: "Lĩnh vực Vay - mượn tài sản"
  *                   description:
  *                     type: string
- *                     description: The description of the notarization field
- *                     example: "Bao gồm các dịch vụ công chứng liên quan đến việc vay mượn tài sản, đảm bảo tính pháp lý và thỏa thuận giữa các bên."
+ *                     description: "Bao gồm các dịch vụ công chứng liên quan đến việc vay mượn tài sản, đảm bảo tính pháp lý và thỏa thuận giữa các bên."
  *                   name_en:
  *                     type: string
  *                     description: The English name of the notarization field
@@ -209,6 +206,14 @@ router
  *                 type: number
  *                 description: Amount of the document to notarize
  *                 example: 10
+ *               fileIds:
+ *                 type: string
+ *                 description: JSON array of file IDs
+ *                 example: '["6746f07ccc390609e20d08be"]'
+ *               customFileNames:
+ *                 type: string
+ *                 description: JSON array of custom file names
+ *                 example: '["file1.pdf", "file2.docx"]'
  *     responses:
  *       "201":
  *         description: Documents uploaded successfully

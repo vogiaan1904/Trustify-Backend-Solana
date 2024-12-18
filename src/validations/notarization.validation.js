@@ -3,7 +3,9 @@ const { objectId } = require('./custom.validation');
 
 const createDocument = {
   body: Joi.object().keys({
-    files: Joi.array().required(),
+    files: Joi.array().optional(),
+    fileIds: Joi.array().items(Joi.string().custom(objectId)).optional(),
+    customFileNames: Joi.array().items(Joi.string()).optional(),
     notarizationService: Joi.object()
       .keys({
         id: Joi.string().custom(objectId).required(),

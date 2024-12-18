@@ -268,6 +268,7 @@ const deleteUserOutOfSession = async (sessionId, email, userId) => {
   await session.save();
   return session;
 };
+
 const joinSession = async (sessionId, action, userId) => {
   if (!mongoose.Types.ObjectId.isValid(sessionId)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Invalid session ID');
@@ -283,6 +284,10 @@ const joinSession = async (sessionId, action, userId) => {
   const userIndex = session.users.findIndex((userItem) => userItem.email === user.email);
   if (userIndex === -1) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found in session');
+  }
+  const userStatus = session.users[userIndex].status;
+  if (userStatus === 'accepted' || userStatus === 'rejected') {
+    throw new ApiError(httpStatus.BAD_REQUEST, `User already ${userStatus}`);
   }
   if (action === 'accept') {
     session.users[userIndex].status = 'accepted';
