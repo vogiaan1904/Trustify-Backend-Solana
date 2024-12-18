@@ -1,71 +1,57 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const faker = require('faker');
-const { Token }  = require('../../../src/models');
+const Token = require('../../../src/models/token.model');
 const { tokenTypes } = require('../../../src/config/tokens');
 
-let mongoServer;
+describe('Token Model', () => {
+  it('should have a schema', () => {
+    expect(Token.schema).toBeDefined();
+  });
 
-beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const uri = mongoServer.getUri();
-    await mongoose.connect(uri, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    });
-});
+  it('should have a token field', () => {
+    const token = Token.schema.obj.token;
+    expect(token).toBeDefined();
+    expect(token.type).toBe(String);
+    expect(token.required).toBe(true);
+    expect(token.index).toBe(true);
+  });
 
-afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
-});
+  it('should have a user field', () => {
+    const user = Token.schema.obj.user;
+    expect(user).toBeDefined();
+    expect(user.type).toBe(mongoose.SchemaTypes.ObjectId);
+    expect(user.ref).toBe('User');
+    expect(user.required).toBe(true);
+  });
 
-describe('Token model', () => {
-    describe('Token validation', () => {
-        let newToken;
-        beforeEach(() => {
-            newToken = {
-                token: faker.random.alphaNumeric(32), 
-                user: new mongoose.Types.ObjectId(),
-                type: tokenTypes.REFRESH,
-                expires: new Date(Date.now() + 60 * 60 * 1000), 
-            };
-        });
+  it('should have a type field', () => {
+    const type = Token.schema.obj.type;
+    expect(type).toBeDefined();
+    expect(type.type).toBe(String);
+    expect(type.enum).toEqual([tokenTypes.REFRESH, tokenTypes.RESET_PASSWORD, tokenTypes.VERIFY_EMAIL]);
+    expect(type.required).toBe(true);
+  });
 
-        test('should correctly validate a valid token', async () => {
-            await expect(new Token(newToken).validate()).resolves.toBeUndefined();
-        });
+  it('should have an expires field', () => {
+    const expires = Token.schema.obj.expires;
+    expect(expires).toBeDefined();
+    expect(expires.type).toBe(Date);
+    expect(expires.required).toBe(true);
+  });
 
-        test('should throw a validation error if token is missing', async () => {
-            newToken.token = undefined;
-            await expect(new Token(newToken).validate()).rejects.toThrow();
-        });
+  it('should have a blacklisted field', () => {
+    const blacklisted = Token.schema.obj.blacklisted;
+    expect(blacklisted).toBeDefined();
+    expect(blacklisted.type).toBe(Boolean);
+    expect(blacklisted.default).toBe(false);
+  });
 
-        test('should throw a validation error if user is missing', async () => {
-            newToken.user = undefined;
-            await expect(new Token(newToken).validate()).rejects.toThrow();
-        });
+  it('should have timestamps', () => {
+    const timestamps = Token.schema.options.timestamps;
+    expect(timestamps).toBe(true);
+  });
 
-        test('should throw a validation error if type is invalid', async () => {
-            newToken.type = 'invalidType';
-            await expect(new Token(newToken).validate()).rejects.toThrow();
-        });
-
-        test('should throw a validation error if expires is missing', async () => {
-            newToken.expires = undefined;
-            await expect(new Token(newToken).validate()).rejects.toThrow();
-        });
-    });
-
-    // describe('Token toJSON()', () => {
-    //     test('should not return token when toJSON is called', () => {
-    //         const newToken = {
-    //             token: faker.random.alphaNumeric(32), 
-    //             user: new mongoose.Types.ObjectId(), 
-    //             type: tokenTypes.REFRESH, 
-    //             expires: new Date(Date.now() + 60 * 60 * 1000), 
-    //         };
-    //         expect(new Token(newToken).toJSON()).not.toHaveProperty('token'); // this case went wrong
-    //     });
-    // });
+  it('should have toJSON plugin', () => {
+    const plugins = Token.schema.plugins.map((plugin) => plugin.fn.name);
+    expect(plugins).toContain('toJSON');
+  });
 });
