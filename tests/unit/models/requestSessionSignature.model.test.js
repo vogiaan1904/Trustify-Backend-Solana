@@ -12,16 +12,22 @@ describe('RequestSessionSignature model', () => {
   beforeEach(() => {
     requestSessionSignature = new RequestSessionSignature({
       sessionId: new mongoose.Types.ObjectId(),
-      signatureImage: 'signature.png',
       approvalStatus: {
         notary: {
           approved: false,
           approvedAt: null,
         },
-        user: {
+        users: [{
+          email: 'testmail@gmail.com',
           approved: false,
           approvedAt: null,
-        },
+          signatureImage: 'signature1.png',
+        }],
+        creator: {
+          approved: false,
+          approvedAt: null,
+          signatureImage: 'signature2.png',
+        }
       },
     });
   });
@@ -30,18 +36,22 @@ describe('RequestSessionSignature model', () => {
     expect(requestSessionSignature.sessionId).toBeInstanceOf(mongoose.Types.ObjectId);
   });
 
-  it('should correctly set the signatureImage', () => {
-    expect(requestSessionSignature.signatureImage).toBe('signature.png');
-  });
-
   it('should correctly set the approvalStatus for notary', () => {
     expect(requestSessionSignature.approvalStatus.notary.approved).toBe(false);
     expect(requestSessionSignature.approvalStatus.notary.approvedAt).toBeNull();
   });
 
-  it('should correctly set the approvalStatus for user', () => {
-    expect(requestSessionSignature.approvalStatus.user.approved).toBe(false);
-    expect(requestSessionSignature.approvalStatus.user.approvedAt).toBeNull();
+  it('should correctly set the approvalStatus for users', () => {
+    expect(requestSessionSignature.approvalStatus.users[0].email).toBe('testmail@gmail.com');
+    expect(requestSessionSignature.approvalStatus.users[0].approved).toBe(false);
+    expect(requestSessionSignature.approvalStatus.users[0].approvedAt).toBeNull();
+    expect(requestSessionSignature.approvalStatus.users[0].signatureImage).toBe('signature1.png');
+  });
+
+  it('should correctly set the approvalStatus for creator', () => {
+    expect(requestSessionSignature.approvalStatus.creator.approved).toBe(false);
+    expect(requestSessionSignature.approvalStatus.creator.approvedAt).toBeNull();
+    expect(requestSessionSignature.approvalStatus.creator.signatureImage).toBe('signature2.png');
   });
 
   it('should apply the toJSON plugin', () => {
