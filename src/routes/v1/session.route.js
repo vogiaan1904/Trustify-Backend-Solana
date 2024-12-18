@@ -6,6 +6,7 @@ const validate = require('../../middlewares/validate');
 const sessionValidation = require('../../validations/session.validation');
 const sessionController = require('../../controllers/session.controller');
 const ApiError = require('../../utils/ApiError');
+const parseJson = require('../../middlewares/parseJson');
 
 const router = express.Router();
 const upload = multer({
@@ -75,8 +76,11 @@ router
 router.route('/upload-session-document/:sessionId').post(
   auth('uploadSessionDocument'),
   upload.array('files'),
+  parseJson,
   (req, res, next) => {
     req.body.files = req.files.map((file) => file.originalname);
+    req.body.fileIds = req.body.fileIds ? JSON.parse(req.body.fileIds) : [];
+    req.body.customFileNames = req.body.customFileNames ? JSON.parse(req.body.customFileNames) : [];
     next();
   },
   validate(sessionValidation.uploadSessionDocument),
@@ -792,7 +796,14 @@ router
  *                   type: string
  *                   format: binary
  *                 description: The files to be uploaded. Supports multiple files.
- *
+ *               fileIds:
+ *                 type: string
+ *                 description: JSON stringified array of file IDs corresponding to the uploaded files.
+ *                 example: ["124124242", "124124243"]
+ *               customFileNames:
+ *                 type: string
+ *                 description: JSON stringified array of custom filenames for the uploaded files.
+ *                 example: ["document1.pdf", "document2.pdf"]
  *     responses:
  *       '200':
  *         description: Successfully uploaded documents to the session.
@@ -816,12 +827,7 @@ router
  *                         type: string
  *                         example: "https://storage.googleapis.com/bucket-name/folder-name/1633972176823-document.pdf"
  *       '400':
- *         description: Bad request. Session ID is invalid or no files are provided.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
+ *
  *                 message:
  *                   type: string
  *                   example: "No files provided"

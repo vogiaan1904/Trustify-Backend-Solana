@@ -75,8 +75,10 @@ const uploadSessionDocument = {
     sessionId: Joi.string().required(),
   }),
   body: Joi.object().keys({
-    files: Joi.array().items(Joi.string()).required(),
+    files: Joi.array().optional(),
     userId: Joi.string().custom(objectId),
+    fileIds: Joi.array().items(Joi.string().custom(objectId)).optional(),
+    customFileNames: Joi.array().items(Joi.string()).optional(),
   }),
 };
 
