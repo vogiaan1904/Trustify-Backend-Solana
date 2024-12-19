@@ -130,7 +130,7 @@ describe('Admin Service', () => {
         role: { $in: ['notary', 'secretary'] },
       });
       expect(result).toEqual({
-        results: mockFind, 
+        results: mockFind,
         page: 1,
         limit: 10,
         totalPages: 1,

@@ -517,11 +517,6 @@ const uploadSessionDocument = async (sessionId, documentBody, files, fileIds, cu
       throw new ApiError(httpStatus.NOT_FOUND, 'Session not found');
     }
 
-    const status = await SessionStatusTracking.findOne({ sessionId });
-    if (status && status.status !== 'pending') {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Session is not pending');
-    }
-
     const newDocument = {
       userId,
       files: [],

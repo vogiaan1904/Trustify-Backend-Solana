@@ -96,7 +96,8 @@ describe('Session Model', () => {
     expect(files.type[0].filename.trim).toBe(true);
     expect(files.type[0].firebaseUrl.type).toBe(String);
     expect(files.type[0].firebaseUrl.trim).toBe(true);
-    expect(files.type[0].createAt.type).toBe(Date);
+    // Corrected spelling here
+    expect(files.type[0].createdAt.type).toBe(Date);
   });
 
   it('should have an output field', () => {

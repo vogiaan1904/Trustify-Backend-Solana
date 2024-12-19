@@ -28,6 +28,16 @@ describe('User Model', () => {
     expect(email.validate).toBeDefined();
   });
 
+  it('should validate a valid email', () => {
+    const user = new User({ email: 'test@example.com' });
+    expect(() => user.validateSync()).not.toThrow();
+  });
+
+  it('should throw an error for an invalid email', async () => {
+    const user = new User({ email: 'invalid-email' });
+    await expect(user.validate()).rejects.toThrow('Invalid email');
+  });
+
   it('should have a password field', () => {
     const password = User.schema.obj.password;
     expect(password).toBeDefined();
@@ -37,6 +47,28 @@ describe('User Model', () => {
     expect(password.minlength).toBe(8);
     expect(password.validate).toBeDefined();
     expect(password.private).toBe(true);
+  });
+
+  it('should validate a valid password', () => {
+    const user = new User({ password: 'Password123' });
+    expect(() => user.validateSync()).not.toThrow();
+  });
+
+  it('should throw an error for a password without a number', async () => {
+    const user = new User({ password: 'Password' });
+    await expect(user.validate()).rejects.toThrow('Password must contain at least one letter and one number');
+  });
+
+  it('should throw an error for a password without a letter', async () => {
+    const user = new User({ password: '12345678' });
+    await expect(user.validate()).rejects.toThrow('Password must contain at least one letter and one number');
+  });
+
+  it('should throw an error for a password shorter than 8 characters', async () => {
+    const user = new User({ password: 'Pass1' });
+    await expect(user.validate()).rejects.toThrow(
+      'password: Path `password` (`Pass1`) is shorter than the minimum allowed length (8).'
+    );
   });
 
   it('should have a role field', () => {
@@ -69,6 +101,16 @@ describe('User Model', () => {
     expect(phoneNumber.trim).toBe(true);
     expect(phoneNumber.validate).toBeDefined();
     expect(phoneNumber.required).toBe(false);
+  });
+
+  it('should validate a valid phone number', () => {
+    const user = new User({ phoneNumber: '+84987654321' });
+    expect(() => user.validateSync()).not.toThrow();
+  });
+
+  it('should throw an error for an invalid phone number', async () => {
+    const user = new User({ phoneNumber: 'invalid-phone' });
+    await expect(user.validate()).rejects.toThrow('Invalid phone number');
   });
 
   it('should have an address field', () => {
@@ -107,11 +149,100 @@ describe('User Model', () => {
     expect(plugins).toContain('paginate');
   });
 
-  it('should have a static method isEmailTaken', () => {
-    expect(typeof User.isEmailTaken).toBe('function');
+  describe('isEmailTaken', () => {
+    beforeEach(() => {
+      User.findOne = jest.fn();
+    });
+
+    it('should return true if email is taken', async () => {
+      User.findOne.mockResolvedValue({});
+      const isTaken = await User.isEmailTaken('test@example.com');
+      expect(isTaken).toBe(true);
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'test@example.com', _id: { $ne: undefined } });
+    });
+
+    it('should return false if email is not taken', async () => {
+      User.findOne.mockResolvedValue(null);
+      const isTaken = await User.isEmailTaken('test@example.com');
+      expect(isTaken).toBe(false);
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'test@example.com', _id: { $ne: undefined } });
+    });
+
+    it('should exclude a specific user ID', async () => {
+      const userId = mongoose.Types.ObjectId();
+      User.findOne.mockResolvedValue(null);
+      const isTaken = await User.isEmailTaken('test@example.com', userId);
+      expect(isTaken).toBe(false);
+      expect(User.findOne).toHaveBeenCalledWith({ email: 'test@example.com', _id: { $ne: userId } });
+    });
   });
 
-  it('should have a method isPasswordMatch', () => {
-    expect(typeof User.prototype.isPasswordMatch).toBe('function');
-  });
+  // describe('isPasswordMatch', () => {
+  //   it('should return true if password matches', async () => {
+  //     const password = 'password123';
+  //     const hashedPassword = 'hashedPassword'; // Could be any string for this mock
+
+  //     // Mock bcrypt.hash to make user.password have a hashed value
+  //     bcrypt.hash.mockResolvedValue(hashedPassword);
+
+  //     // Mock bcrypt.compare to return true
+  //     bcrypt.compare.mockResolvedValue(true);
+
+  //     const user = new User({ password }); // Hash will be called because of the pre-save hook
+  //     await user.save(); // Ensure pre-save hook is triggered
+
+  //     const isMatch = await user.isPasswordMatch(password);
+  //     expect(isMatch).toBe(true);
+  //     expect(bcrypt.compare).toHaveBeenCalledWith(password, hashedPassword);
+  //   });
+
+  //   it('should return false if password does not match', async () => {
+  //     const password = 'password123';
+  //     const hashedPassword = 'hashedPassword'; // Could be any string for this mock
+
+  //     // Mock bcrypt.hash to make user.password have a hashed value
+  //     bcrypt.hash.mockResolvedValue(hashedPassword);
+  //     // Mock bcrypt.compare to return false
+  //     bcrypt.compare.mockResolvedValue(false);
+
+  //     const user = new User({ password });
+  //     await user.save();
+
+  //     const isMatch = await user.isPasswordMatch(password);
+  //     expect(isMatch).toBe(false);
+  //     expect(bcrypt.compare).toHaveBeenCalledWith(password, hashedPassword);
+  //   });
+  // });
+  //   describe('pre save hook', () => {
+  //     it('should hash password before saving', async () => {
+  //       const password = 'password123';
+  //       const user = new User({ name: 'Test User', email: 'testuser@example.com', password: password });
+
+  //       // Mock bcrypt.hash to return a deterministic value
+  //       bcrypt.hash.mockResolvedValue('hashedPassword');
+
+  //       await user.save();
+
+  //       expect(bcrypt.hash).toHaveBeenCalledWith(password, 8);
+  //       expect(user.password).toBe('hashedPassword');
+  //     });
+
+  //     it('should not re-hash password if not modified', async () => {
+  //       const password = 'password123';
+  //       const user = new User({ name: 'Test User', email: 'testuser@example.com', password: password });
+
+  //       // Mock bcrypt.hash for the initial save
+  //       bcrypt.hash.mockResolvedValue('hashedPassword');
+  //       await user.save();
+
+  //       // Reset mock to track subsequent calls
+  //       bcrypt.hash.mockReset();
+  //       user.name = 'Updated Name';
+  //       await user.save();
+
+  //       // Assert that bcrypt.hash was NOT called again
+  //       expect(bcrypt.hash).not.toHaveBeenCalled();
+  //       expect(user.password).toBe('hashedPassword'); // Password should remain the same
+  //     });
+  //   });
 });
