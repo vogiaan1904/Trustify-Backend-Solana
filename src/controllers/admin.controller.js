@@ -131,6 +131,20 @@ const getPaymentTotal = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(result);
 });
 
+const exportMetrics = catchAsync(async (req, res) => {
+  const { period } = req.params;
+  const allowedPeriods = ['today', 'current_week', 'current_month', 'current_year'];
+
+  if (!allowedPeriods.includes(period)) {
+    return res.status(httpStatus.BAD_REQUEST).send({ message: 'Invalid period parameter' });
+  }
+
+  const buffer = await adminService.exportMetrics(period);
+
+  res.setHeader('Content-Disposition', `attachment; filename=metrics_${period}.xlsx`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buffer);
+});
 module.exports = {
   getDocumentCount,
   getUserCount,
@@ -142,4 +156,5 @@ module.exports = {
   getPaymentTotalByService,
   getPaymentTotalByNotarizationField,
   getPaymentTotal,
+  exportMetrics,
 };

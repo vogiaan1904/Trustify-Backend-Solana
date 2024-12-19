@@ -1,6 +1,15 @@
 const httpStatus = require('http-status');
-const { UserWallet, User } = require('../models');
+const { UserWallet, User, Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
+const { paymentService, emailService } = require('./index');
+const { payOS } = require('../config/payos');
+
+const generateOrderCode = () => {
+  const MAX_SAFE_INTEGER = 9007199254740991;
+  const MAX_ORDER_CODE = Math.floor(MAX_SAFE_INTEGER / 10);
+
+  return Math.floor(Math.random() * MAX_ORDER_CODE) + 1;
+};
 
 /**
  * Adds an NFT to the user's wallet.
@@ -178,9 +187,64 @@ const decreaseNFTAmount = async (userId, fileIds) => {
   }
 };
 
+const purchaseDocument = async (userId, itemId, amount) => {
+  try {
+    const userWallet = await UserWallet.findOne({ user: userId });
+
+    if (!userWallet) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User wallet not found');
+    }
+
+    const user = await User.findById(userId);
+
+    const document = userWallet.nftItems.find((item) => item._id.toString() === itemId);
+    if (!document) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Document not found in user wallet');
+    }
+
+    const payment = new Payment({
+      orderCode: generateOrderCode(),
+      amount: amount * 2000,
+      description: `Purchase NFT document`,
+      returnUrl: `${process.env.CLIENT_URL}/user/document-wallet`,
+      cancelUrl: `${process.env.SERVER_URL}/user/document-wallet`,
+      userId: document.userId,
+      documentId: itemId,
+      serviceId: null,
+      fieldId: null,
+    });
+
+    await payment.save();
+
+    const paymentLinkResponse = await payOS.createPaymentLink({
+      orderCode: payment.orderCode,
+      amount: payment.amount,
+      description: payment.description,
+      returnUrl: payment.returnUrl,
+      cancelUrl: payment.cancelUrl,
+    });
+
+    payment.checkoutUrl = paymentLinkResponse.checkoutUrl;
+    await payment.save();
+
+    await emailService.sendNFTPaymentEmail(user.email, document.filename, paymentLinkResponse);
+
+    document.amount += amount;
+
+    await userWallet.save();
+  } catch (error) {
+    console.error('Error purchasing document:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to purchase document');
+  }
+};
+
 module.exports = {
   addNFTToWallet,
   getWallet,
   transferNFT,
   decreaseNFTAmount,
+  purchaseDocument,
 };

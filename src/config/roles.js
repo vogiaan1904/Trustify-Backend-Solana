@@ -19,6 +19,7 @@ const allRoles = {
     'getDocument',
     'getWallet',
     'transferNFT',
+    'purchaseDocument',
   ],
   admin: [
     'getUsers',
@@ -52,6 +53,7 @@ const allRoles = {
     'viewNotarizationHistoryByUserId',
     'getDocument',
     'getSessionsByStatus',
+    'exportMetrics',
   ],
   notary: [
     'getDocumentsByRole',

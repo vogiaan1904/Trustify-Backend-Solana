@@ -1,6 +1,6 @@
 const httpStatus = require('http-status');
 const catchAsync = require('../utils/catchAsync');
-const { userWalletService } = require('../services');
+const { userWalletService, paymentService } = require('../services');
 const ApiError = require('../utils/ApiError');
 
 /**
@@ -41,8 +41,20 @@ const transferNFT = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send({ message: 'NFT transferred successfully' });
 });
 
+/**
+ * Purchase a document and add it to the user's wallet
+ */
+const purchaseDocument = catchAsync(async (req, res) => {
+  const userId = req.user.id;
+  const { itemId, amount } = req.body;
+  await userWalletService.purchaseDocument(userId, itemId, amount);
+
+  res.status(httpStatus.OK).send({ message: 'Document purchased successfully' });
+});
+
 module.exports = {
   addNFT,
   getWallet,
   transferNFT,
+  purchaseDocument,
 };

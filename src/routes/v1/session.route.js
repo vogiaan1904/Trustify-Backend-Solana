@@ -494,7 +494,7 @@ router
  *               items:
  *                 type: object
  *                 schema:
- *                   $ref: '#/components/schemas/Sessions'
+ *                   $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
@@ -542,7 +542,7 @@ router
  *               items:
  *                 type: object
  *                 schema:
- *                   $ref: '#/components/schemas/Sessions'
+ *                   $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
@@ -590,7 +590,7 @@ router
  *               items:
  *                 type: object
  *                 schema:
- *                   $ref: '#/components/schemas/Sessions'
+ *                   $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
@@ -701,7 +701,7 @@ router
  *               items:
  *                 type: object
  *                 schema:
- *                   $ref: '#/components/schemas/Sessions'
+ *                   $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
@@ -745,7 +745,7 @@ router
  *             schema:
  *               type: object
  *               schema:
- *                 $ref: '#/components/schemas/Sessions'
+ *                 $ref: '#/components/schemas/Session'
  *       "400":
  *         description: Bad Request
  *         content:
@@ -1111,7 +1111,7 @@ router
  *                 sessions:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/Sessions'
+ *                     $ref: '#/components/schemas/Session'
  *                 pagination:
  *                   type: object
  *                   properties:

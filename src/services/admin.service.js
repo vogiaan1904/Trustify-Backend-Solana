@@ -2,6 +2,8 @@ const moment = require('moment');
 const httpStatus = require('http-status');
 const { Document, User, Session, Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
+const ExcelJS = require('exceljs');
+const { getUserById } = require('./user.service');
 
 const getDocumentCount = async (period) => {
   let start;
@@ -625,6 +627,196 @@ const getPaymentTotal = async (period) => {
   };
 };
 
+const getDocuments = async (period) => {
+  let start;
+  let end;
+
+  switch (period) {
+    case 'today':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      break;
+    case 'current_week':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      break;
+    case 'current_month':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      break;
+    case 'current_year':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const documents = await Document.find({ createdAt: { $gte: start, $lte: end } }).populate('notarizationField');
+
+  return documents;
+};
+
+const getPayments = async (period) => {
+  let start;
+  let end;
+
+  switch (period) {
+    case 'today':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      break;
+    case 'current_week':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      break;
+    case 'current_month':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      break;
+    case 'current_year':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const payments = await Payment.find({ createdAt: { $gte: start, $lte: end } })
+    .populate('service')
+    .populate('field');
+
+  return payments;
+};
+
+const getSessions = async (period) => {
+  let start;
+  let end;
+
+  switch (period) {
+    case 'today':
+      start = moment().startOf('day').toDate();
+      end = moment().endOf('day').toDate();
+      break;
+    case 'current_week':
+      start = moment().startOf('week').toDate();
+      end = moment().endOf('week').toDate();
+      break;
+    case 'current_month':
+      start = moment().startOf('month').toDate();
+      end = moment().endOf('month').toDate();
+      break;
+    case 'current_year':
+      start = moment().startOf('year').toDate();
+      end = moment().endOf('year').toDate();
+      break;
+    default:
+      throw new Error(`Invalid period: ${period}`);
+  }
+
+  const sessions = await Session.find({
+    $or: [{ startDate: { $gte: start, $lte: end } }, { endDate: { $gte: start, $lte: end } }],
+  });
+
+  return sessions;
+};
+
+const exportMetrics = async (period) => {
+  const [documents, payments, sessions] = await Promise.all([
+    getDocuments(period),
+    getPayments(period),
+    getSessions(period),
+  ]);
+
+  const workbook = new ExcelJS.Workbook();
+  const exportDate = moment().format('YYYY-MM-DD HH:mm:ss');
+
+  // Add Documents Sheet
+  const documentsSheet = workbook.addWorksheet('Documents');
+  documentsSheet.columns = [
+    { header: 'Document ID', key: 'id', width: 30 },
+    { header: 'Notarization Field', key: 'notarizationField', width: 30 },
+    { header: 'Requester Name', key: 'requesterName', width: 30 },
+    { header: 'Requester Email', key: 'requesterEmail', width: 30 },
+    { header: 'Price', key: 'price', width: 15 },
+    { header: 'Created At', key: 'createdAt', width: 30 },
+  ];
+  documentsSheet.mergeCells('A1:F1');
+  documentsSheet.getCell('A1').value = 'Documents List';
+  documentsSheet.getCell('A1').alignment = { horizontal: 'center' };
+  documentsSheet.addRow(['Export Date:', exportDate]);
+  documentsSheet.addRow(['Period:', period]);
+  documentsSheet.addRow([]);
+  documentsSheet.addRow(documentsSheet.columns.map((col) => col.header));
+  documents.forEach((doc) => {
+    documentsSheet.addRow({
+      id: doc._id,
+      notarizationField: doc.notarizationField.name,
+      requesterName: doc.requesterInfo.fullName,
+      requesterEmail: doc.requesterInfo.email,
+      price: doc.notarizationService.price,
+      createdAt: doc.createdAt,
+    });
+  });
+
+  // Add Payments Sheet
+  const paymentsSheet = workbook.addWorksheet('Payments');
+  paymentsSheet.columns = [
+    { header: 'Payment ID', key: 'id', width: 30 },
+    { header: 'User Full Name', key: 'userFullName', width: 30 },
+    { header: 'Amount', key: 'amount', width: 15 },
+    { header: 'Created At', key: 'createdAt', width: 30 },
+  ];
+  paymentsSheet.mergeCells('A1:D1');
+  paymentsSheet.getCell('A1').value = 'Payments List';
+  paymentsSheet.getCell('A1').alignment = { horizontal: 'center' };
+  paymentsSheet.addRow(['Export Date:', exportDate]);
+  paymentsSheet.addRow(['Period:', period]);
+  paymentsSheet.addRow([]);
+  paymentsSheet.addRow(paymentsSheet.columns.map((col) => col.header));
+
+  for (const payment of payments) {
+    const user = await getUserById(payment.userId);
+    paymentsSheet.addRow({
+      id: payment._id,
+      userFullName: user ? user.name : 'Unknown',
+      amount: payment.amount,
+      createdAt: payment.createdAt,
+    });
+  }
+
+  // Add Sessions Sheet
+  const sessionsSheet = workbook.addWorksheet('Sessions');
+  sessionsSheet.columns = [
+    { header: 'Session ID', key: 'id', width: 30 },
+    { header: 'Created By', key: 'createdBy', width: 30 },
+    { header: 'Start Date', key: 'startDate', width: 30 },
+    { header: 'End Date', key: 'endDate', width: 30 },
+  ];
+  sessionsSheet.mergeCells('A1:D1');
+  sessionsSheet.getCell('A1').value = 'Sessions List';
+  sessionsSheet.getCell('A1').alignment = { horizontal: 'center' };
+  sessionsSheet.addRow(['Export Date:', exportDate]);
+  sessionsSheet.addRow(['Period:', period]);
+  sessionsSheet.addRow([]);
+  sessionsSheet.addRow(sessionsSheet.columns.map((col) => col.header));
+
+  for (const session of sessions) {
+    const createdByUsers = await getUserById(session.createdBy);
+    sessionsSheet.addRow({
+      id: session._id,
+      createdBy: createdByUsers ? createdByUsers.name : 'Unknown',
+      startDate: session.startDate,
+      endDate: session.endDate,
+      createdAt: session.createdAt,
+    });
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return buffer;
+};
+
 module.exports = {
   getDocumentCount,
   getUserCount,
@@ -635,4 +827,5 @@ module.exports = {
   getPaymentTotalByService,
   getPaymentTotalByNotarizationField,
   getPaymentTotal,
+  exportMetrics,
 };
