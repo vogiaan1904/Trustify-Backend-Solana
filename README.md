@@ -156,7 +156,7 @@ yarn test
 For coverage reports:
 
 ```bash
-yarn test:coverage
+yarn test --coverage
 ```
 
 ## Docker
