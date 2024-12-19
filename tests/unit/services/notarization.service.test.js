@@ -7,13 +7,36 @@ const ApiError = require('../../../src/utils/ApiError');
 
 // Mock models
 jest.mock('../../../src/models', () => {
+  // Define mockObjectId *inside* jest.mock
   const mockObjectId = () => '507f1f77bcf86cd799439011';
 
-  const MockDocument = jest.fn().mockImplementation(() => ({
-    save: jest.fn().mockResolvedValue(true),
+  // Define MockDocument and other mocks *inside* jest.mock
+  const MockDocument = jest.fn().mockImplementation((doc) => ({
+    ...doc,
+    save: jest.fn().mockResolvedValue({
+      ...doc,
+      _id: mockObjectId(),
+      files: doc.files || [],
+      status: 'pending',
+      notarizationService: { price: 100 },
+      toObject: () => ({
+        ...doc,
+        _id: mockObjectId(),
+        files: doc.files || [],
+        status: 'pending',
+        notarizationService: { price: 100 },
+      }),
+    }),
     _id: mockObjectId(),
+    files: [],
     status: 'pending',
     notarizationService: { price: 100 },
+    toObject: () => ({
+      _id: mockObjectId(),
+      files: [],
+      status: 'pending',
+      notarizationService: { price: 100 },
+    }),
   }));
 
   const MockStatusTracking = jest.fn().mockImplementation(() => ({
@@ -22,24 +45,41 @@ jest.mock('../../../src/models', () => {
     status: 'pending',
   }));
 
-  return {
-    Document: Object.assign(MockDocument, {
-      aggregate: jest.fn().mockResolvedValue([{ _id: mockObjectId(), status: 'pending' }]),
-      find: jest.fn().mockImplementation(() => ({
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: mockObjectId(), status: 'approved' }]),
-      })),
-      findById: jest.fn().mockResolvedValue({
-        _id: mockObjectId(),
-        status: 'pending',
-        notarizationService: { price: 100 },
-        output: [{ filename: 'test.pdf', firebaseUrl: 'https://test.url' }],
-        save: jest.fn().mockResolvedValue(true),
-      }),
-      countDocuments: jest.fn().mockResolvedValue(1),
+  // Define the document-specific methods inside jest.mock as well
+  const documentMockAdditions = {
+    aggregate: jest.fn().mockResolvedValue([{ _id: mockObjectId(), status: 'pending' }]),
+    find: jest.fn().mockImplementation(() => ({
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      populate: jest.fn().mockReturnThis(),
+      toObject: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([
+        {
+          _id: mockObjectId(),
+          status: 'approved',
+          toObject: () => ({ _id: mockObjectId(), status: 'approved' }),
+        },
+      ]),
+    })),
+    findById: jest.fn().mockResolvedValue({
+      _id: mockObjectId(),
+      status: 'pending',
+      notarizationService: { price: 100 },
+      output: [{ filename: 'test.pdf', firebaseUrl: 'https://test.url' }],
+      save: jest.fn().mockResolvedValue(true),
     }),
+    findByIdAndUpdate: jest.fn().mockResolvedValue({
+      _id: mockObjectId(),
+      status: 'pending',
+      output: [],
+      save: jest.fn().mockResolvedValue(true),
+    }),
+    countDocuments: jest.fn().mockResolvedValue(1),
+  };
+
+  return {
+    // Now everything is defined within the jest.mock scope
+    Document: Object.assign(MockDocument, documentMockAdditions),
     StatusTracking: Object.assign(MockStatusTracking, {
       findOne: jest.fn().mockResolvedValue({
         documentId: mockObjectId(),
@@ -62,6 +102,7 @@ jest.mock('../../../src/models', () => {
         _id: mockObjectId(),
       }),
     },
+    mockObjectId, // Add this line to expose mockObjectId
   };
 });
 
@@ -138,44 +179,50 @@ describe('Notarization Service', () => {
   });
 
   describe('createDocument', () => {
-    test('should create document successfully', async () => {
+    test('should throw error when no files are provided', async () => {
       const mockData = {
-        notarizationField: { id: mockDocId },
-        notarizationService: { id: mockDocId },
-        requesterInfo: {
-          email: 'test@test.com',
-        },
-      };
-      const mockFiles = [
-        {
-          originalname: 'test.pdf',
-          buffer: Buffer.from('test'),
-        },
-      ];
-
-      Document.mockImplementation(() => ({
-        save: jest.fn().mockResolvedValue(true),
-        _id: mockDocId,
-      }));
-
-      const result = await notarizationService.createDocument(mockData, mockFiles, mockUserId);
-      expect(result).toBeDefined();
-      expect(result._id).toBeDefined();
-    });
-
-    test('should throw error when file upload fails', async () => {
-      jest.spyOn(notarizationService, 'uploadFileToFirebase').mockRejectedValue(new Error('Upload failed'));
-
-      const mockData = {
-        notarizationField: { id: mockDocId },
-        notarizationService: { id: mockDocId },
-        requesterInfo: {
-          email: 'test@test.com',
-        },
+        notarizationField: { id: 'fieldId' },
+        notarizationService: { id: 'serviceId' },
+        requesterInfo: { email: 'test@test.com' },
+        amount: 1,
       };
       const mockFiles = undefined;
+      const mockFileIds = undefined;
+      const mockCustomFileNames = undefined;
 
-      await expect(notarizationService.createDocument(mockData, mockFiles, mockUserId)).rejects.toThrow('No files provided');
+      NotarizationField.findById.mockResolvedValue({ _id: 'fieldId' });
+      NotarizationService.findById.mockResolvedValue({ _id: 'serviceId', fieldId: 'fieldId' });
+
+      await expect(
+        notarizationService.createDocument(mockData, mockFiles, mockFileIds, mockCustomFileNames, mockUserId)
+      ).rejects.toThrow('No files provided');
+    });
+
+    test('should create document successfully', async () => {
+      const mockData = {
+        notarizationField: { id: 'fieldId' },
+        notarizationService: { id: 'serviceId' },
+        requesterInfo: { email: 'test@test.com' },
+        amount: 1,
+      };
+      const mockFiles = [{ originalname: 'file1.pdf', buffer: Buffer.from('file1'), mimetype: 'application/pdf' }];
+      const mockFileIds = undefined;
+      const mockCustomFileNames = undefined;
+      const mockedModels = require('../../../src/models');
+
+      NotarizationField.findById.mockResolvedValue({ _id: 'fieldId' });
+      NotarizationService.findById.mockResolvedValue({ _id: 'serviceId', fieldId: 'fieldId' });
+
+      const result = await notarizationService.createDocument(
+        mockData,
+        mockFiles,
+        mockFileIds,
+        mockCustomFileNames,
+        mockUserId
+      );
+
+      // Access mockObjectId from the mocked module
+      expect(result).toHaveProperty('_id', mockedModels.mockObjectId());
     });
   });
 
@@ -323,6 +370,7 @@ describe('Notarization Service', () => {
       const mockHistory = [
         {
           documentId: mockDocId,
+          signature: null,
           status: 'p',
         },
       ];

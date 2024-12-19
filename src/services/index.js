@@ -10,7 +10,6 @@ module.exports.notarizationFieldService = require('./notarizationField.service')
 module.exports.notarizationServiceService = require('./notarizationService.service');
 module.exports.adminService = require('./admin.service');
 module.exports.paymentService = require('./payment.service');
-module.exports.locationService = require('./location.service');
 module.exports.cronService = require('./cron.service');
 module.exports.notaryService = require('./notary.service');
 module.exports.userWalletService = require('./userWallet.service');

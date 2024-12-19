@@ -123,7 +123,7 @@ const createDocument = async (documentBody, files, fileIds, customFileNames, use
       throw error;
     }
     console.error('Error creating document:', error.message);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload document');
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to create document: ${error.message}`);
   }
 };
 const createStatusTracking = async (documentId, status) => {
@@ -204,8 +204,8 @@ const getHistoryWithStatus = async (userId) => {
 
   return history.map((doc) => ({
     ...doc,
-    status: doc.status.length > 0 ? doc.status[0] : null,
-    signature: doc.signature.length > 0 ? doc.signature[0] : null,
+    status: doc.status && doc.status.length > 0 ? doc.status[0] : null,
+    signature: doc.signature && doc.signature.length > 0 ? doc.signature[0] : null,
   }));
 };
 

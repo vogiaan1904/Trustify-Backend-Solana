@@ -195,12 +195,13 @@ describe('Email Service', () => {
   });
 
   describe('sendPaymentEmail', () => {
-    it('should send payment email', async () => {
+    test('should send payment email', async () => {
       const email = 'test@example.com';
-      const documentId = 'doc-123';
+      const documentId = 'documentId';
       const paymentLinkResponse = { checkoutUrl: 'http://payment.url' };
-      const templateHtml = '<p>Payment link: {{paymentLink}}</p>';
 
+      // Mock fs.readFile to return a template string
+      const templateHtml = '<p>Payment link: {{paymentLink}}</p>';
       fs.readFile.mockResolvedValueOnce(templateHtml);
 
       await emailService.sendPaymentEmail(email, documentId, paymentLinkResponse);
@@ -208,8 +209,8 @@ describe('Email Service', () => {
       expect(mockTransport.sendMail).toHaveBeenCalledWith({
         from: config.email.from,
         to: email,
-        subject: 'Thanh toán công chứng',
-        html: expect.stringContaining(paymentLinkResponse.checkoutUrl),
+        subject: 'Payment Required',
+        html: '<p>Payment link: http://payment.url</p>',
       });
     });
   });

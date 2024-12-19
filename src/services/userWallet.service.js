@@ -1,7 +1,7 @@
 const httpStatus = require('http-status');
 const { UserWallet, User, Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
-const { paymentService, emailService } = require('./index');
+const { emailService } = require('./index');
 const { payOS } = require('../config/payos');
 
 const generateOrderCode = () => {
@@ -134,6 +134,9 @@ const transferNFT = async (fromUserId, toUserEmail, transactionHash, amount) => 
         toWallet.nftItems.push({ ...nftItem.toObject(), amount });
       }
     }
+
+    // Send email to recipient
+    await emailService.sendNFTTransferEmail(toUserEmail, nftItem.filename, amount);
 
     await toWallet.save();
   } catch (error) {
