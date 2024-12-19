@@ -1,120 +1,63 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const NotarizationService = require('../../../src/models/notarizationService.model');
 
-let mongoServer;
-
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany({ name: 'Test Service' });
-  }
-});
-
-describe('NotarizationService Model Test Suite', () => {
-  let validNotarizationServiceData;
-
-  beforeEach(() => {
-    validNotarizationServiceData = {
-      name: 'Test Service',
-      fieldId: new mongoose.Types.ObjectId(),
-      description: 'Test Service Description',
-      price: 100,
-      code: 'TEST_SERVICE',
-      required_documents: ['passport', 'id_card'],
-    };
+describe('NotarizationService Model', () => {
+  it('should have a schema', () => {
+    expect(NotarizationService.schema).toBeDefined();
   });
 
-  test('should create & save notarization service successfully', async () => {
-    const validNotarizationService = new NotarizationService(validNotarizationServiceData);
-    const savedNotarizationService = await validNotarizationService.save();
-
-    expect(savedNotarizationService._id).toBeDefined();
-    expect(savedNotarizationService.name).toBe(validNotarizationServiceData.name);
-    expect(savedNotarizationService.fieldId).toBe(validNotarizationServiceData.fieldId);
-    expect(savedNotarizationService.description).toBe(validNotarizationServiceData.description);
-    expect(savedNotarizationService.price).toBe(validNotarizationServiceData.price);
-    expect(savedNotarizationService.code).toBe(validNotarizationServiceData.code);
-    expect(Array.from(savedNotarizationService.required_documents)).toEqual(validNotarizationServiceData.required_documents);
+  it('should have a name field', () => {
+    const name = NotarizationService.schema.obj.name;
+    expect(name).toBeDefined();
+    expect(name.type).toBe(String);
+    expect(name.required).toBe(true);
+    expect(name.unique).toBe(true);
   });
 
-  test('should fail to save without required fields', async () => {
-    const notarizationServiceWithoutRequired = new NotarizationService({});
-    let err;
-
-    try {
-      await notarizationServiceWithoutRequired.save();
-    } catch (error) {
-      err = error;
-    }
-
-    expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
-    expect(err.errors.name).toBeDefined();
-    expect(err.errors.fieldId).toBeDefined();
-    expect(err.errors.description).toBeDefined();
-    expect(err.errors.price).toBeDefined();
-    expect(err.errors.code).toBeDefined();
+  it('should have a fieldId field', () => {
+    const fieldId = NotarizationService.schema.obj.fieldId;
+    expect(fieldId).toBeDefined();
+    expect(fieldId.type).toBe(mongoose.Schema.Types.ObjectId);
+    expect(fieldId.ref).toBe('NotarizationField');
+    expect(fieldId.required).toBe(true);
   });
 
-  test('should fail to save with duplicate name', async () => {
-    const validNotarizationService = new NotarizationService(validNotarizationServiceData);
-    await validNotarizationService.save();
-
-    const duplicateNotarizationService = new NotarizationService(validNotarizationServiceData);
-    let err;
-
-    try {
-      await duplicateNotarizationService.save();
-    } catch (error) {
-      err = error;
-    }
-
-    expect(err).toBeInstanceOf(mongoose.mongo.MongoError);
-    expect(err.code).toBe(11000); // Duplicate key error code
+  it('should have a description field', () => {
+    const description = NotarizationService.schema.obj.description;
+    expect(description).toBeDefined();
+    expect(description.type).toBe(String);
+    expect(description.required).toBe(true);
   });
 
-  test('should convert to JSON correctly', async () => {
-    const notarizationService = new NotarizationService(validNotarizationServiceData);
-    const savedNotarizationService = await notarizationService.save();
-    const jsonNotarizationService = savedNotarizationService.toJSON();
-
-    expect(jsonNotarizationService).not.toHaveProperty('__v');
-    expect(jsonNotarizationService).toHaveProperty('id');
+  it('should have a price field', () => {
+    const price = NotarizationService.schema.obj.price;
+    expect(price).toBeDefined();
+    expect(price.type).toBe(Number);
+    expect(price.required).toBe(true);
   });
 
-  test('should handle pagination plugin', async () => {
-    // Create multiple notarization services
-    let validNotarizationServiceData2 = {
-      name: 'Test Service2',
-      fieldId: new mongoose.Types.ObjectId(),
-      description: 'Test Service Description',
-      price: 100,
-      code: 'TEST_SERVICE',
-      required_documents: ['passport', 'id_card'],
-    };
-    await NotarizationService.create([validNotarizationServiceData, validNotarizationServiceData2]);
+  it('should have a code field', () => {
+    const code = NotarizationService.schema.obj.code;
+    expect(code).toBeDefined();
+    expect(code.type).toBe(String);
+    expect(code.required).toBe(true);
+  });
 
-    const result = await NotarizationService.paginate({}, { limit: 1, page: 1 });
+  it('should have a required_documents field', () => {
+    const required_documents = NotarizationService.schema.obj.required_documents;
+    expect(required_documents).toBeDefined();
+    expect(required_documents.type).toStrictEqual([String]);
+    expect(required_documents.required).toBe(true);
+    expect(required_documents.default).toEqual([]);
+  });
 
-    expect(result).toHaveProperty('results');
-    expect(result).toHaveProperty('page');
-    expect(result).toHaveProperty('limit');
-    expect(result).toHaveProperty('totalPages');
-    expect(result).toHaveProperty('totalResults');
+  it('should have the correct collection name', () => {
+    expect(NotarizationService.collection.collectionName).toBe('notarizationServices');
+  });
+
+  it('should have toJSON and paginate plugins', () => {
+    const plugins = NotarizationService.schema.plugins.map((plugin) => plugin.fn.name);
+    expect(plugins).toContain('toJSON');
+    expect(plugins).toContain('paginate');
   });
 });

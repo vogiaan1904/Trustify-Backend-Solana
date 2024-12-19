@@ -1,54 +1,58 @@
 const mongoose = require('mongoose');
 const RequestSessionSignature = require('../../../src/models/requestSessionSignature.model');
-const { toJSON, paginate } = require('../../../src/models/plugins');
 
-// Mock the plugins
-jest.mock('../../../src/models/plugins/toJSON.plugin', () => jest.fn());
-jest.mock('../../../src/models/plugins/paginate.plugin', () => jest.fn());
-
-describe('RequestSessionSignature model', () => {
-  let requestSessionSignature;
-
-  beforeEach(() => {
-    requestSessionSignature = new RequestSessionSignature({
-      sessionId: new mongoose.Types.ObjectId(),
-      signatureImage: 'signature.png',
-      approvalStatus: {
-        notary: {
-          approved: false,
-          approvedAt: null,
-        },
-        user: {
-          approved: false,
-          approvedAt: null,
-        },
-      },
-    });
+describe('RequestSessionSignature Model', () => {
+  it('should have a schema', () => {
+    expect(RequestSessionSignature.schema).toBeDefined();
   });
 
-  it('should correctly set the sessionId', () => {
-    expect(requestSessionSignature.sessionId).toBeInstanceOf(mongoose.Types.ObjectId);
+  it('should have a sessionId field', () => {
+    const sessionId = RequestSessionSignature.schema.obj.sessionId;
+    expect(sessionId).toBeDefined();
+    expect(sessionId.type).toBe(mongoose.Schema.Types.ObjectId);
+    expect(sessionId.ref).toBe('Session');
+    expect(sessionId.required).toBe(true);
   });
 
-  it('should correctly set the signatureImage', () => {
-    expect(requestSessionSignature.signatureImage).toBe('signature.png');
+  it('should have an approvalStatus field', () => {
+    const approvalStatus = RequestSessionSignature.schema.obj.approvalStatus;
+    expect(approvalStatus).toBeDefined();
+    expect(approvalStatus.notary).toBeDefined();
+    expect(approvalStatus.notary.approved.type).toBe(Boolean);
+    expect(approvalStatus.notary.approved.default).toBe(false);
+    expect(approvalStatus.notary.approvedAt.type).toBe(Date);
+    expect(approvalStatus.notary.approvedAt.default).toBe(null);
+
+    expect(approvalStatus.users).toBeDefined();
+    expect(approvalStatus.users[0].email.type).toBe(String);
+    expect(approvalStatus.users[0].approved.type).toBe(Boolean);
+    expect(approvalStatus.users[0].approved.default).toBe(false);
+    expect(approvalStatus.users[0].approvedAt.type).toBe(Date);
+    expect(approvalStatus.users[0].approvedAt.default).toBe(null);
+    expect(approvalStatus.users[0].signatureImage.type).toBe(String);
+    expect(approvalStatus.users[0].signatureImage.default).toBe(null);
+
+    expect(approvalStatus.creator).toBeDefined();
+    expect(approvalStatus.creator.approved.type).toBe(Boolean);
+    expect(approvalStatus.creator.approved.default).toBe(false);
+    expect(approvalStatus.creator.approvedAt.type).toBe(Date);
+    expect(approvalStatus.creator.approvedAt.default).toBe(null);
+    expect(approvalStatus.creator.signatureImage.type).toBe(String);
+    expect(approvalStatus.creator.signatureImage.default).toBe(null);
   });
 
-  it('should correctly set the approvalStatus for notary', () => {
-    expect(requestSessionSignature.approvalStatus.notary.approved).toBe(false);
-    expect(requestSessionSignature.approvalStatus.notary.approvedAt).toBeNull();
+  it('should have timestamps', () => {
+    const timestamps = RequestSessionSignature.schema.options.timestamps;
+    expect(timestamps).toBe(true);
   });
 
-  it('should correctly set the approvalStatus for user', () => {
-    expect(requestSessionSignature.approvalStatus.user.approved).toBe(false);
-    expect(requestSessionSignature.approvalStatus.user.approvedAt).toBeNull();
+  it('should have the correct collection name', () => {
+    expect(RequestSessionSignature.collection.collectionName).toBe('requestSessionSignature');
   });
 
-  it('should apply the toJSON plugin', () => {
-    expect(toJSON).toHaveBeenCalled();
-  });
-
-  it('should apply the paginate plugin', () => {
-    expect(paginate).toHaveBeenCalled();
+  it('should have toJSON and paginate plugins', () => {
+    const plugins = RequestSessionSignature.schema.plugins.map((plugin) => plugin.fn.name);
+    expect(plugins).toContain('toJSON');
+    expect(plugins).toContain('paginate');
   });
 });

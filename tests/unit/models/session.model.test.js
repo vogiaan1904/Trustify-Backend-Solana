@@ -1,131 +1,123 @@
 const mongoose = require('mongoose');
 const Session = require('../../../src/models/session.model');
-const { toJSON, paginate } = require('../../../src/models/plugins');
-const { any } = require('joi');
 
-// Mock the plugins
-jest.mock('../../../src/models/plugins/toJSON.plugin', () => jest.fn());
-jest.mock('../../../src/models/plugins/paginate.plugin', () => jest.fn());
-
-describe('Session model', () => {
-  let session;
-
-  beforeEach(() => {
-    session = new Session({
-      sessionId: 'sessionId123',
-      notaryField: { field: 'value' },
-      notaryService: { service: 'value' },
-      sessionName: 'Test Session',
-      startTime: '10:00 AM',
-      startDate: new Date('2023-01-01'),
-      endTime: '11:00 AM',
-      endDate: new Date('2023-01-01'),
-      users: [
-        {
-          email: 'user@example.com',
-          status: 'pending',
-        },
-      ],
-      createdBy: new mongoose.Types.ObjectId(),
-      amount: 100,
-      files: [
-        {
-          userId: new mongoose.Types.ObjectId(),
-          filename: 'file1.pdf',
-          firebaseUrl: 'https://firebase.url/file1.pdf',
-          createAt: new Date('2023-01-01'),
-        },
-      ],
-      output: [
-        {
-          filename: 'output1.pdf',
-          firebaseUrl: 'https://firebase.url/output1.pdf',
-          transactionHash: '0x123',
-          uploadedAt: new Date('2023-01-01'),
-        },
-      ],
-    });
+describe('Session Model', () => {
+  it('should have a schema', () => {
+    expect(Session.schema).toBeDefined();
   });
 
-  it('should correctly set the sessionId', () => {
-    expect(session.sessionId).toBe('sessionId123');
+  it('should have a sessionId field', () => {
+    const sessionId = Session.schema.obj.sessionId;
+    expect(sessionId).toBeDefined();
+    expect(sessionId.type).toBe(String);
   });
 
-  it('should correctly set the notaryField', () => {
-    expect(session.notaryField).toEqual({ field: 'value' });
+  it('should have a notaryField field', () => {
+    const notaryField = Session.schema.obj.notaryField;
+    expect(notaryField).toBeDefined();
+    expect(notaryField.type).toBe(Object);
+    expect(notaryField.required).toBe(true);
   });
 
-  it('should correctly set the notaryService', () => {
-    expect(session.notaryService).toEqual({ service: 'value' });
+  it('should have a notaryService field', () => {
+    const notaryService = Session.schema.obj.notaryService;
+    expect(notaryService).toBeDefined();
+    expect(notaryService.type).toBe(Object);
+    expect(notaryService.required).toBe(true);
   });
 
-  it('should correctly set the sessionName', () => {
-    expect(session.sessionName).toBe('Test Session');
+  it('should have a sessionName field', () => {
+    const sessionName = Session.schema.obj.sessionName;
+    expect(sessionName).toBeDefined();
+    expect(sessionName.type).toBe(String);
+    expect(sessionName.required).toBe(true);
   });
 
-  it('should correctly set the startTime', () => {
-    expect(session.startTime).toBe('10:00 AM');
+  it('should have a startTime field', () => {
+    const startTime = Session.schema.obj.startTime;
+    expect(startTime).toBeDefined();
+    expect(startTime.type).toBe(String);
+    expect(startTime.required).toBe(true);
   });
 
-  it('should correctly set the startDate', () => {
-    expect(session.startDate).toEqual(new Date('2023-01-01'));
+  it('should have a startDate field', () => {
+    const startDate = Session.schema.obj.startDate;
+    expect(startDate).toBeDefined();
+    expect(startDate.type).toBe(Date);
+    expect(startDate.required).toBe(true);
   });
 
-  it('should correctly set the endTime', () => {
-    expect(session.endTime).toBe('11:00 AM');
+  it('should have an endTime field', () => {
+    const endTime = Session.schema.obj.endTime;
+    expect(endTime).toBeDefined();
+    expect(endTime.type).toBe(String);
+    expect(endTime.required).toBe(true);
   });
 
-  it('should correctly set the endDate', () => {
-    expect(session.endDate).toEqual(new Date('2023-01-01'));
+  it('should have an endDate field', () => {
+    const endDate = Session.schema.obj.endDate;
+    expect(endDate).toBeDefined();
+    expect(endDate.type).toBe(Date);
+    expect(endDate.required).toBe(true);
   });
 
-  it('should correctly set the users', () => {
-    expect(session.users.toObject()).toEqual([
-      {
-        _id: expect.any(mongoose.Types.ObjectId),
-        email: 'user@example.com',
-        status: 'pending',
-      },
-    ]);
+  it('should have a users field', () => {
+    const users = Session.schema.obj.users;
+    expect(users).toBeDefined();
+    expect(users.type).toBeInstanceOf(Array);
+    expect(users.default).toEqual([]);
+    expect(users.type[0].email.type).toBe(String);
+    expect(users.type[0].email.required).toBe(true);
+    expect(users.type[0].status.type).toBe(String);
+    expect(users.type[0].status.default).toBe('pending');
   });
 
-  it('should correctly set the createdBy', () => {
-    expect(session.createdBy).toBeInstanceOf(mongoose.Types.ObjectId);
+  it('should have a createdBy field', () => {
+    const createdBy = Session.schema.obj.createdBy;
+    expect(createdBy).toBeDefined();
+    expect(createdBy.type).toBe(mongoose.Schema.Types.ObjectId);
+    expect(createdBy.ref).toBe('User');
   });
 
-  it('should correctly set the amount', () => {
-    expect(session.amount).toBe(100);
+  it('should have an amount field', () => {
+    const amount = Session.schema.obj.amount;
+    expect(amount).toBeDefined();
+    expect(amount.type).toBe(Number);
+    expect(amount.required).toBe(true);
   });
 
-  it('should correctly set the files', () => {
-    expect(session.files.toObject()).toEqual([
-      {
-        _id: expect.any(mongoose.Types.ObjectId),
-        userId: expect.any(mongoose.Types.ObjectId),
-        filename: 'file1.pdf',
-        firebaseUrl: 'https://firebase.url/file1.pdf',
-        createAt: new Date('2023-01-01'),
-      },
-    ]);
+  it('should have a files field', () => {
+    const files = Session.schema.obj.files;
+    expect(files).toBeDefined();
+    expect(files.type).toBeInstanceOf(Array);
+    expect(files.type[0].userId.type).toBe(mongoose.Schema.Types.ObjectId);
+    expect(files.type[0].userId.ref).toBe('User');
+    expect(files.type[0].filename.type).toBe(String);
+    expect(files.type[0].filename.trim).toBe(true);
+    expect(files.type[0].firebaseUrl.type).toBe(String);
+    expect(files.type[0].firebaseUrl.trim).toBe(true);
+    expect(files.type[0].createAt.type).toBe(Date);
   });
 
-  it('should correctly set the output', () => {
-    expect(session.output.toObject()).toEqual([
-      {
-        _id: expect.any(mongoose.Types.ObjectId),
-        filename: 'output1.pdf',
-        firebaseUrl: 'https://firebase.url/output1.pdf',
-        transactionHash: '0x123',
-        uploadedAt: new Date('2023-01-01'),
-      },
-    ]);
+  it('should have an output field', () => {
+    const output = Session.schema.obj.output;
+    expect(output).toBeDefined();
+    expect(output).toBeInstanceOf(Array);
+    expect(output[0].filename.type).toBe(String);
+    expect(output[0].filename.required).toBe(true);
+    expect(output[0].filename.trim).toBe(true);
+    expect(output[0].firebaseUrl.type).toBe(String);
+    expect(output[0].firebaseUrl.required).toBe(true);
+    expect(output[0].firebaseUrl.trim).toBe(true);
+    expect(output[0].transactionHash.type).toBe(String);
+    expect(output[0].transactionHash.default).toBe(null);
+    expect(output[0].uploadedAt.type).toBe(Date);
+    expect(output[0].uploadedAt.default).toBeDefined();
   });
 
-  it('should apply the toJSON plugin', () => {
-    expect(toJSON).toHaveBeenCalled();
-  });
-
-  it('should apply the paginate plugin', () => {
-    expect(paginate).toHaveBeenCalled();
+  it('should have toJSON and paginate plugins', () => {
+    const plugins = Session.schema.plugins.map((plugin) => plugin.fn.name);
+    expect(plugins).toContain('toJSON');
+    expect(plugins).toContain('paginate');
   });
 });

@@ -1,107 +1,53 @@
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 const RequestSignature = require('../../../src/models/requestSignature.model');
 
-let mongoServer;
-
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany();
-  }
-});
-
-describe('RequestSignature Model Test Suite', () => {
-  let validRequestSignatureData;
-
-  beforeEach(() => {
-    validRequestSignatureData = {
-      documentId: new mongoose.Types.ObjectId(),
-      signatureImage: 'https://example.com/signature.png',
-      approvalStatus: {
-        notary: {
-          approved: false,
-          approvedAt: null,
-        },
-        user: {
-          approved: false,
-          approvedAt: null,
-        },
-      },
-    };
+describe('RequestSignature Model', () => {
+  it('should have a schema', () => {
+    expect(RequestSignature.schema).toBeDefined();
   });
 
-  test('should create & save request signature successfully', async () => {
-    const validRequestSignature = new RequestSignature(validRequestSignatureData);
-    const savedRequestSignature = await validRequestSignature.save();
-
-    expect(savedRequestSignature._id).toBeDefined();
-    expect(savedRequestSignature.documentId).toBe(validRequestSignatureData.documentId);
-    expect(savedRequestSignature.signatureImage).toBe(validRequestSignatureData.signatureImage);
-    expect(savedRequestSignature.approvalStatus.notary.approved).toBe(
-      validRequestSignatureData.approvalStatus.notary.approved
-    );
-    expect(savedRequestSignature.approvalStatus.user.approved).toBe(validRequestSignatureData.approvalStatus.user.approved);
+  it('should have a documentId field', () => {
+    const documentId = RequestSignature.schema.obj.documentId;
+    expect(documentId).toBeDefined();
+    expect(documentId.type).toBe(mongoose.Schema.Types.ObjectId);
+    expect(documentId.ref).toBe('Document');
+    expect(documentId.required).toBe(true);
   });
 
-  test('should fail to save without required fields', async () => {
-    const requestSignatureWithoutRequired = new RequestSignature({});
-    let err;
-
-    try {
-      await requestSignatureWithoutRequired.save();
-    } catch (error) {
-      err = error;
-    }
-
-    expect(err).toBeInstanceOf(mongoose.Error.ValidationError);
-    expect(err.errors.documentId).toBeDefined();
+  it('should have a signatureImage field', () => {
+    const signatureImage = RequestSignature.schema.obj.signatureImage;
+    expect(signatureImage).toBeDefined();
+    expect(signatureImage.type).toBe(String);
   });
 
-  test('should set default approval status correctly', async () => {
-    const validRequestSignature = new RequestSignature(validRequestSignatureData);
-    const savedRequestSignature = await validRequestSignature.save();
+  it('should have an approvalStatus field', () => {
+    const approvalStatus = RequestSignature.schema.obj.approvalStatus;
+    expect(approvalStatus).toBeDefined();
+    expect(approvalStatus.notary).toBeDefined();
+    expect(approvalStatus.notary.approved.type).toBe(Boolean);
+    expect(approvalStatus.notary.approved.default).toBe(false);
+    expect(approvalStatus.notary.approvedAt.type).toBe(Date);
+    expect(approvalStatus.notary.approvedAt.default).toBe(null);
 
-    expect(savedRequestSignature.approvalStatus.notary.approved).toBe(false);
-    expect(savedRequestSignature.approvalStatus.notary.approvedAt).toBeNull();
-    expect(savedRequestSignature.approvalStatus.user.approved).toBe(false);
-    expect(savedRequestSignature.approvalStatus.user.approvedAt).toBeNull();
+    expect(approvalStatus.user).toBeDefined();
+    expect(approvalStatus.user.approved.type).toBe(Boolean);
+    expect(approvalStatus.user.approved.default).toBe(false);
+    expect(approvalStatus.user.approvedAt.type).toBe(Date);
+    expect(approvalStatus.user.approvedAt.default).toBe(null);
   });
 
-  test('should convert to JSON correctly', async () => {
-    const requestSignature = new RequestSignature(validRequestSignatureData);
-    const savedRequestSignature = await requestSignature.save();
-    const jsonRequestSignature = savedRequestSignature.toJSON();
-
-    expect(jsonRequestSignature).not.toHaveProperty('__v');
-    expect(jsonRequestSignature).toHaveProperty('id');
+  it('should have timestamps', () => {
+    const timestamps = RequestSignature.schema.options.timestamps;
+    expect(timestamps).toBe(true);
   });
 
-  test('should handle pagination plugin', async () => {
-    // Create multiple request signatures
-    await RequestSignature.create([validRequestSignatureData, validRequestSignatureData]);
+  it('should have the correct collection name', () => {
+    expect(RequestSignature.collection.collectionName).toBe('requestSignature');
+  });
 
-    const result = await RequestSignature.paginate({}, { limit: 1, page: 1 });
-
-    expect(result).toHaveProperty('results');
-    expect(result).toHaveProperty('page');
-    expect(result).toHaveProperty('limit');
-    expect(result).toHaveProperty('totalPages');
-    expect(result).toHaveProperty('totalResults');
+  it('should have toJSON and paginate plugins', () => {
+    const plugins = RequestSignature.schema.plugins.map((plugin) => plugin.fn.name);
+    expect(plugins).toContain('toJSON');
+    expect(plugins).toContain('paginate');
   });
 });

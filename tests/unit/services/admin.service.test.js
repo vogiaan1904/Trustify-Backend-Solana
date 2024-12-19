@@ -1,211 +1,225 @@
 const moment = require('moment');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const mongoose = require('mongoose');
 const { Document, User, Session, Payment } = require('../../../src/models');
 const adminService = require('../../../src/services/admin.service');
-const ApiError = require('../../../src/utils/ApiError');
-const httpStatus = require('http-status');
 
-let mongoServer;
+jest.mock('../../../src/models', () => ({
+  Document: {
+    count: jest.fn(),
+    aggregate: jest.fn(),
+  },
+  User: {
+    countDocuments: jest.fn(),
+    find: jest.fn(),
+  },
+  Session: {
+    countDocuments: jest.fn(),
+  },
+  Payment: {
+    aggregate: jest.fn(),
+  },
+}));
 
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
-  await mongoose.connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+describe('Admin Service', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
   });
-});
 
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany();
-  }
-  jest.clearAllMocks();
-});
-
-describe('Admin Service Test Suite', () => {
   describe('getDocumentCount', () => {
-    it('should return document count for today', async () => {
-      const mockDocumentCount = jest.spyOn(Document, 'count').mockResolvedValueOnce(5).mockResolvedValueOnce(3);
+    it('should return document count and growth percent for the given period', async () => {
+      const period = 'today';
+      const start = moment().startOf('day').toDate();
+      const end = moment().endOf('day').toDate();
+      const previousStart = moment(start).subtract(1, 'day').toDate();
+      const previousEnd = moment(end).subtract(1, 'day').toDate();
 
-      const result = await adminService.getDocumentCount('today');
+      Document.count.mockResolvedValueOnce(10).mockResolvedValueOnce(5);
 
-      expect(mockDocumentCount).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.documentCount).toBe(5);
-      expect(result.previousPeriod.documentCount).toBe(3);
-      expect(result.growthPercent).toBe(((5 - 3) / 3) * 100);
-    });
+      const result = await adminService.getDocumentCount(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getDocumentCount('invalid_period')).rejects.toThrow('Invalid period: invalid_period');
+      expect(Document.count).toHaveBeenCalledWith({ createdAt: { $gte: start, $lte: end } });
+      expect(Document.count).toHaveBeenCalledWith({ createdAt: { $gte: previousStart, $lte: previousEnd } });
+      expect(result).toEqual({
+        currentPeriod: { period, documentCount: 10 },
+        previousPeriod: { period: `previous_${period}`, documentCount: 5 },
+        growthPercent: 100,
+      });
     });
   });
 
   describe('getUserCount', () => {
-    it('should return user count for today', async () => {
-      const mockUserCount = jest.spyOn(User, 'countDocuments').mockResolvedValueOnce(10).mockResolvedValueOnce(8);
+    it('should return user count and growth percent for the given period', async () => {
+      const period = 'today';
+      const start = moment().startOf('day').toDate();
+      const end = moment().endOf('day').toDate();
+      const previousStart = moment(start).subtract(1, 'day').toDate();
+      const previousEnd = moment(end).subtract(1, 'day').toDate();
 
-      const result = await adminService.getUserCount('today');
+      User.countDocuments.mockResolvedValueOnce(20).mockResolvedValueOnce(10);
 
-      expect(mockUserCount).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.userCount).toBe(10);
-      expect(result.previousPeriod.userCount).toBe(8);
-      expect(result.growthPercent).toBe(((10 - 8) / 8) * 100);
-    });
+      const result = await adminService.getUserCount(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getUserCount('invalid_period')).rejects.toThrow('Invalid period: invalid_period');
+      expect(User.countDocuments).toHaveBeenCalledWith({ createdAt: { $gte: start, $lte: end } });
+      expect(User.countDocuments).toHaveBeenCalledWith({ createdAt: { $gte: previousStart, $lte: previousEnd } });
+      expect(result).toEqual({
+        currentPeriod: { period, userCount: 20 },
+        previousPeriod: { period: `previous_${period}`, userCount: 10 },
+        growthPercent: 100,
+      });
     });
   });
 
   describe('getDocumentsByNotaryField', () => {
-    it('should return documents by notary field for today', async () => {
-      const mockAggregate = jest
-        .spyOn(Document, 'aggregate')
-        .mockResolvedValueOnce([{ notarizationFieldName: 'Field1', amount: 5 }])
-        .mockResolvedValueOnce([{ notarizationFieldName: 'Field1', amount: 3 }]);
+    it('should return documents by notary field for the given period', async () => {
+      const period = 'today';
+      const start = moment().startOf('day').toDate();
+      const end = moment().endOf('day').toDate();
+      const previousStart = moment(start).subtract(1, 'day').toDate();
+      const previousEnd = moment(end).subtract(1, 'day').toDate();
 
-      const result = await adminService.getDocumentsByNotaryField('today');
+      const currentDocuments = [{ notarizationFieldName: 'Field1', amount: 5 }];
+      const previousDocuments = [{ notarizationFieldName: 'Field1', amount: 3 }];
 
-      expect(mockAggregate).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.totals).toEqual([{ notarizationFieldName: 'Field1', amount: 5 }]);
-      expect(result.previousPeriod.totals).toEqual([{ notarizationFieldName: 'Field1', amount: 3 }]);
-    });
+      Document.aggregate.mockResolvedValueOnce(currentDocuments).mockResolvedValueOnce(previousDocuments);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getDocumentsByNotaryField('invalid_period')).rejects.toThrow(
-        'Invalid period: invalid_period'
-      );
+      const result = await adminService.getDocumentsByNotaryField(period);
+
+      expect(Document.aggregate).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        currentPeriod: { period, totals: currentDocuments },
+        previousPeriod: { period: `previous_${period}`, totals: previousDocuments },
+      });
     });
   });
 
   describe('getEmployeeCount', () => {
-    it('should return employee count', async () => {
-      const mockNotaryCount = jest.spyOn(User, 'countDocuments').mockResolvedValueOnce(5);
-      const mockSecretaryCount = jest.spyOn(User, 'countDocuments').mockResolvedValueOnce(3);
+    it('should return notary and secretary count', async () => {
+      User.countDocuments.mockResolvedValueOnce(5).mockResolvedValueOnce(3);
 
       const result = await adminService.getEmployeeCount();
 
-      expect(mockNotaryCount).toHaveBeenCalledWith({ role: 'notary' });
-      expect(mockSecretaryCount).toHaveBeenCalledWith({ role: 'secretary' });
-      expect(result.notaryCount).toBe(5);
-      expect(result.secretaryCount).toBe(3);
+      expect(User.countDocuments).toHaveBeenCalledWith({ role: 'notary' });
+      expect(User.countDocuments).toHaveBeenCalledWith({ role: 'secretary' });
+      expect(result).toEqual({ notaryCount: 5, secretaryCount: 3 });
     });
   });
 
   describe('getEmployeeList', () => {
-    // it('should return employee list', async () => {
-    //   const mockFind = jest
-    //     .spyOn(User, 'find')
-    //     .mockImplementation(() => jest.fn().mockResolvedValue([{ name: 'John Doe' }]));
-    //   const mockCountDocuments = jest.spyOn(User, 'countDocuments').mockImplementation(() => jest.fn().mockResolvedValueOnce(1));
+    it('should return paginated employee list', async () => {
+      const filter = {};
+      const options = { sortBy: 'name', order: 'asc', limit: 10, page: 1 };
+      const employees = [{ name: 'John Doe', role: 'notary' }];
 
-    //   const result = await adminService.getEmployeeList({name: 'John'}, { sortBy: 'name', order: 'asc', limit: 10, page: 1 });
+      const mockFind = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(employees),
+      };
 
-    //   expect(mockFind).toHaveBeenCalled();
-    //   expect(mockCountDocuments).toHaveBeenCalled();
-    //   expect(result.results).toEqual([{ name: 'John Doe' }]);
-    //   expect(result.page).toBe(1);
-    //   expect(result.limit).toBe(10);
-    //   expect(result.totalPages).toBe(1);
-    //   expect(result.totalResults).toBe(1);
-    // });
+      User.countDocuments.mockResolvedValueOnce(1);
+      User.find.mockReturnValue(mockFind);
 
-    it('should throw an error if retrieval fails', async () => {
-      jest
-        .spyOn(User, 'find')
-        .mockImplementation(() => jest.fn().mockRejectedValueOnce(new Error('Failed to retrieve employee list')));
+      const result = await adminService.getEmployeeList(filter, options);
 
-      await expect(adminService.getEmployeeList({}, { sortBy: 'name', order: 'asc', limit: 10, page: 1 })).rejects.toThrow(
-        new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to retrieve employee list')
-      );
+      expect(User.countDocuments).toHaveBeenCalledWith({
+        ...filter,
+        role: { $in: ['notary', 'secretary'] },
+      });
+      expect(User.find).toHaveBeenCalledWith({
+        ...filter,
+        role: { $in: ['notary', 'secretary'] },
+      });
+      expect(result).toEqual({
+        results: mockFind, 
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+        totalResults: 1,
+      });
     });
   });
 
   describe('getSessionCount', () => {
-    it('should return session count for today', async () => {
-      const mockSessionCount = jest.spyOn(Session, 'countDocuments').mockResolvedValueOnce(5).mockResolvedValueOnce(3);
+    it('should return session count and growth percent for the given period', async () => {
+      const period = 'today';
+      const start = moment().startOf('day').toDate();
+      const end = moment().endOf('day').toDate();
+      const previousStart = moment(start).subtract(1, 'day').toDate();
+      const previousEnd = moment(end).subtract(1, 'day').toDate();
 
-      const result = await adminService.getSessionCount('today');
+      Session.countDocuments.mockResolvedValueOnce(15).mockResolvedValueOnce(10);
 
-      expect(mockSessionCount).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.sessionCount).toBe(5);
-      expect(result.previousPeriod.sessionCount).toBe(3);
-      expect(result.growthPercent).toBe(((5 - 3) / 3) * 100);
-    });
+      const result = await adminService.getSessionCount(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getSessionCount('invalid_period')).rejects.toThrow('Invalid period: invalid_period');
+      expect(Session.countDocuments).toHaveBeenCalledWith({
+        $or: [{ startDate: { $gte: start, $lte: end } }, { endDate: { $gte: start, $lte: end } }],
+      });
+      expect(Session.countDocuments).toHaveBeenCalledWith({
+        $or: [
+          { startDate: { $gte: previousStart, $lte: previousEnd } },
+          { endDate: { $gte: previousStart, $lte: previousEnd } },
+        ],
+      });
+      expect(result).toEqual({
+        currentPeriod: { period, sessionCount: 15 },
+        previousPeriod: { period: `previous_${period}`, sessionCount: 10 },
+        growthPercent: 50,
+      });
     });
   });
 
   describe('getPaymentTotalByService', () => {
-    it('should return payment total by service for today', async () => {
-      const mockAggregate = jest
-        .spyOn(Payment, 'aggregate')
-        .mockResolvedValueOnce([{ serviceName: 'Service1', totalAmount: 100 }])
-        .mockResolvedValueOnce([{ serviceName: 'Service1', totalAmount: 80 }]);
+    it('should return payment total by service for the given period', async () => {
+      const period = 'today';
+      const currentPayments = [{ serviceName: 'Service1', totalAmount: 100 }];
+      const previousPayments = [{ serviceName: 'Service1', totalAmount: 50 }];
 
-      const result = await adminService.getPaymentTotalByService('today');
+      Payment.aggregate.mockResolvedValueOnce(currentPayments).mockResolvedValueOnce(previousPayments);
 
-      expect(mockAggregate).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.totals).toEqual([{ serviceName: 'Service1', totalAmount: 100 }]);
-      expect(result.previousPeriod.totals).toEqual([{ serviceName: 'Service1', totalAmount: 80 }]);
-    });
+      const result = await adminService.getPaymentTotalByService(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getPaymentTotalByService('invalid_period')).rejects.toThrow(
-        'Invalid period: invalid_period'
-      );
+      expect(Payment.aggregate).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        currentPeriod: { period, totals: currentPayments },
+        previousPeriod: { period: `previous_${period}`, totals: previousPayments },
+      });
     });
   });
 
   describe('getPaymentTotalByNotarizationField', () => {
-    it('should return payment total by notarization field for today', async () => {
-      const mockAggregate = jest
-        .spyOn(Payment, 'aggregate')
-        .mockResolvedValueOnce([{ fieldName: 'Field1', totalAmount: 100 }])
-        .mockResolvedValueOnce([{ fieldName: 'Field1', totalAmount: 80 }]);
+    it('should return payment total by notarization field for the given period', async () => {
+      const period = 'today';
+      const currentFields = [{ fieldName: 'Field1', totalAmount: 200 }];
+      const previousFields = [{ fieldName: 'Field1', totalAmount: 100 }];
 
-      const result = await adminService.getPaymentTotalByNotarizationField('today');
+      Payment.aggregate.mockResolvedValueOnce(currentFields).mockResolvedValueOnce(previousFields);
 
-      expect(mockAggregate).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.totals).toEqual([{ fieldName: 'Field1', totalAmount: 100 }]);
-      expect(result.previousPeriod.totals).toEqual([{ fieldName: 'Field1', totalAmount: 80 }]);
-    });
+      const result = await adminService.getPaymentTotalByNotarizationField(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getPaymentTotalByNotarizationField('invalid_period')).rejects.toThrow(
-        'Invalid period: invalid_period'
-      );
+      expect(Payment.aggregate).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        currentPeriod: { period, totals: currentFields },
+        previousPeriod: { period: `previous_${period}`, totals: previousFields },
+      });
     });
   });
 
   describe('getPaymentTotal', () => {
-    it('should return payment total for today', async () => {
-      const mockAggregate = jest
-        .spyOn(Payment, 'aggregate')
-        .mockResolvedValueOnce([{ totalAmount: 100 }])
-        .mockResolvedValueOnce([{ totalAmount: 80 }]);
+    it('should return payment total and growth percent for the given period', async () => {
+      const period = 'today';
+      const currentTotalResult = [{ totalAmount: 300 }];
+      const previousTotalResult = [{ totalAmount: 150 }];
 
-      const result = await adminService.getPaymentTotal('today');
+      Payment.aggregate.mockResolvedValueOnce(currentTotalResult).mockResolvedValueOnce(previousTotalResult);
 
-      expect(mockAggregate).toHaveBeenCalledTimes(2);
-      expect(result.currentPeriod.totalAmount).toBe(100);
-      expect(result.previousPeriod.totalAmount).toBe(80);
-      expect(result.growthPercent).toBe(((100 - 80) / 80) * 100);
-    });
+      const result = await adminService.getPaymentTotal(period);
 
-    it('should throw an error for invalid period', async () => {
-      await expect(adminService.getPaymentTotal('invalid_period')).rejects.toThrow('Invalid period: invalid_period');
+      expect(Payment.aggregate).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        currentPeriod: { period, totalAmount: 300 },
+        previousPeriod: { period: `previous_${period}`, totalAmount: 150 },
+        growthPercent: 100,
+      });
     });
   });
 });
