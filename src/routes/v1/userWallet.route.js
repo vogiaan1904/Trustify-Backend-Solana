@@ -94,6 +94,56 @@ const router = express.Router();
  */
 
 /**
+ * @swagger
+ * /userWallet/wallet/purchase:
+ *   post:
+ *     summary: Purchase a document and add it to the user's wallet
+ *     tags: [UserWallet]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemId
+ *               - amount
+ *             properties:
+ *               itemId:
+ *                 type: string
+ *                 description: The ID of the document to purchase
+ *               amount:
+ *                 type: number
+ *                 description: The amount of the document to purchase
+ *             example:
+ *               itemId: '60f1b8b4c0b4f00015e7f8f2'
+ *               amount: 1
+ *     responses:
+ *       "200":
+ *         description: Document purchased successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Document purchased successfully
+ *       "400":
+ *         $ref: '#/components/responses/BadRequest'
+ *       "401":
+ *         $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         $ref: '#/components/responses/NotFound'
+ *       "500":
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
  * @route GET /userWallet/wallet
  * @desc Get user wallet
  */
@@ -104,5 +154,11 @@ router.route('/wallet').get(auth('getWallet'), userWalletController.getWallet);
  * @desc Transfer a specific amount of an NFT to another user
  */
 router.route('/wallet/transfer').post(auth('transferNFT'), userWalletController.transferNFT);
+
+/**
+ * @route POST /userWallet/wallet/purchase
+ * @desc Purchase a document and add it to the user's wallet
+ */
+router.route('/wallet/purchase').post(auth('purchaseDocument'), userWalletController.purchaseDocument);
 
 module.exports = router;

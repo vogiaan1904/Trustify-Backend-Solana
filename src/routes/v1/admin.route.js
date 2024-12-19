@@ -32,6 +32,9 @@ router.get(
   adminController.getPaymentTotalByNotarizationField
 );
 
+// export excel file for metrics with period
+router.get('/export/:period', auth('exportMetrics'), adminController.exportMetrics);
+
 module.exports = router;
 
 /**
@@ -721,4 +724,71 @@ module.exports = router;
  *               $ref: '#/components/responses/Forbidden'
  *       "404":
  *         description: Not found - endpoint does not exist
+ */
+
+/**
+ * @swagger
+ * /admin/metrics/export/{period}:
+ *   get:
+ *     summary: Export metrics to Excel file
+ *     description: Export metrics data to an Excel file for the specified period. Only admins can access this information.
+ *     tags: [Admins]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [today, current_week, current_month, current_year]
+ *         required: true
+ *         description: The period to export metrics data for
+ *     responses:
+ *       "200":
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Metrics data exported successfully
+ *       "400":
+ *         description: Bad Request - Invalid period parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Invalid request parameters
+ *                 error:
+ *                   type: string
+ *                   example: BadRequest
+ *       "401":
+ *         description: Unauthorized access - invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/Unauthorized'
+ *       "403":
+ *         description: Forbidden - the user doesn't have access
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/Forbidden'
+ *       "404":
+ *         description: Not found - endpoint does not exist
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/NotFound'
+ *       "500":
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */

@@ -25,8 +25,8 @@ const createPayment = async (paymentData) => {
       orderCode: generateOrderCode(), // Ensuring a valid orderCode
       amount,
       description,
-      returnUrl: `${process.env.SERVER_URL}/success.html`,
-      cancelUrl: `${process.env.SERVER_URL}/cancel.html`,
+      returnUrl,
+      cancelUrl,
       userId,
     });
 

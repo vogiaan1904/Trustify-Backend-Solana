@@ -139,6 +139,13 @@ const sendSessionStatusUpdateEmail = async (emails, sessionId, currentStatus, ne
   }
 };
 
+const sendNFTPaymentEmail = async (email, filename, paymentLinkResponse) => {
+  const subject = 'Thanh toán NFT';
+  const paymentLink = paymentLinkResponse.checkoutUrl;
+  const html = await loadTemplate('nft_payment_email', { filename, paymentLink });
+  await sendEmail(email, subject, html);
+};
+
 module.exports = {
   transport,
   sendEmail,
@@ -149,4 +156,5 @@ module.exports = {
   sendDocumentStatusUpdateEmail,
   sendPaymentEmail,
   sendSessionStatusUpdateEmail,
+  sendNFTPaymentEmail,
 };
