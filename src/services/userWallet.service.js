@@ -135,6 +135,9 @@ const transferNFT = async (fromUserId, toUserEmail, transactionHash, amount) => 
       }
     }
 
+    // send email to recipient
+    await emailService.sendNFTTransferEmail(toUserEmail, nftItem.filename, amount);
+
     await toWallet.save();
   } catch (error) {
     console.error('Error transferring NFT:', error);

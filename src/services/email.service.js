@@ -103,7 +103,7 @@ const sendDocumentStatusUpdateEmail = async (email, documentId, currentStatus, n
 };
 
 const sendPaymentEmail = async (email, documentId, paymentLinkResponse) => {
-  const subject = 'Thanh toán công chứng';
+  const subject = 'Payment Required';
   const paymentLink = paymentLinkResponse.checkoutUrl;
   const html = await loadTemplate('payment_email', { documentId, paymentLink });
   await sendEmail(email, subject, html);
@@ -140,9 +140,15 @@ const sendSessionStatusUpdateEmail = async (emails, sessionId, currentStatus, ne
 };
 
 const sendNFTPaymentEmail = async (email, filename, paymentLinkResponse) => {
-  const subject = 'Thanh toán NFT';
+  const subject = 'Payment Required';
   const paymentLink = paymentLinkResponse.checkoutUrl;
   const html = await loadTemplate('nft_payment_email', { filename, paymentLink });
+  await sendEmail(email, subject, html);
+};
+
+const sendNFTTransferEmail = async (email, filename, amount) => {
+  const subject = 'NFT Transfer';
+  const html = await loadTemplate('nft_transfer_email', { filename, amount });
   await sendEmail(email, subject, html);
 };
 
@@ -157,4 +163,5 @@ module.exports = {
   sendPaymentEmail,
   sendSessionStatusUpdateEmail,
   sendNFTPaymentEmail,
+  sendNFTTransferEmail,
 };
