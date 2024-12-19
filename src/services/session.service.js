@@ -459,7 +459,11 @@ const getSessionsByUserId = async (userId) => {
         return {
           ...session,
           creator: creator ? { _id: creator._id, email: creator.email, name: creator.name } : null,
-          status: status ? status.status : 'unknown',
+          status: status
+            ? status
+            : {
+                status: 'unknown',
+              },
           signature: signature ? signature.approvalStatus : {},
           files: filteredFiles,
         };
