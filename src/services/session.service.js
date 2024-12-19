@@ -692,7 +692,13 @@ const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
         const sessions = await SessionStatusTracking.find({ status: 'processing' })
           .skip(skipSessions)
           .limit(validatedLimit)
-          .populate('sessionId');
+          .populate({
+            path: 'sessionId',
+            populate: {
+              path: 'createdBy',
+              model: 'User',
+            },
+          });
 
         return sessions.map((doc) => ({
           ...doc.toObject(),
@@ -702,9 +708,16 @@ const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
       readyToSign: async () => {
         const sessions = await RequestSessionSignature.find({
           'approvalStatus.notary.approved': false,
-          'approvalStatus.user.approved': true,
+          'approvalStatus.creator.approved': true,
+          'approvalStatus.users.approved': { $all: [true] },
         })
-          .populate('sessionId')
+          .populate({
+            path: 'sessionId',
+            populate: {
+              path: 'createdBy',
+              model: 'User',
+            },
+          })
           .skip(skipSessions)
           .limit(validatedLimit)
           .sort({ createdAt: -1 });
@@ -716,9 +729,15 @@ const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
       },
       pendingSignature: async () => {
         const sessions = await RequestSessionSignature.find({
-          $or: [{ 'approvalStatus.notary.approved': false }, { 'approvalStatus.user.approved': false }],
+          $or: [{ 'approvalStatus.creator.approved': false }, { 'approvalStatus.users.approved': { $all: [false] } }],
         })
-          .populate('sessionId')
+          .populate({
+            path: 'sessionId',
+            populate: {
+              path: 'createdBy',
+              model: 'User',
+            },
+          })
           .skip(skipSessions)
           .limit(validatedLimit)
           .sort({ createdAt: -1 });
@@ -729,14 +748,14 @@ const getSessionsByStatus = async ({ status, limit = 10, page = 1 }) => {
         }));
       },
       default: async () => {
-        const sessions = await Session.find().skip(skipSessions).limit(validatedLimit);
+        const sessions = await Session.find().skip(skipSessions).limit(validatedLimit).populate('createdBy');
+
         return sessions.map((doc) => ({
           ...doc.toObject(),
           status: 'default',
         }));
       },
     };
-
     const sessions = await (status && statusQueries[status] ? statusQueries[status]() : statusQueries.default());
 
     const totalSessions = await getTotalSessions(status || 'default');
