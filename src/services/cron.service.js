@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { Token } = require('../models');
 const { autoVerifyDocument } = require('./notarization.service');
 const { autoVerifySession } = require('./session.service');
+const { updateAllPayments } = require('./payment.service');
 
 const deleteExpiredTokens = async () => {
   try {
@@ -27,6 +28,9 @@ const startCronJob = () => {
   // 1 minute for testing
   cron.schedule('* * * * *', autoVerifyDocument);
   cron.schedule('* * * * *', autoVerifySession);
+
+  // 1 days for testing
+  cron.schedule('0 0 * * *', updateAllPayments);
 };
 
 module.exports = { startCronJob };
