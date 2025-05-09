@@ -1,6 +1,6 @@
-# Online Notarization Management System - Backend
+# Trustify - Backend
 
-This repository contains the backend code for **Online Notarization Management System**, a platform for online notarization services that leverages blockchain and NFT for document storage.
+This repository contains the backend code for **Trustify**, a platform for online notarization services that leverages blockchain and NFT for document storage.
 
 ## Features
 

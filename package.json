@@ -1,7 +1,7 @@
 {
-  "name": "create-nodejs-express-app",
+  "name": "trustify",
   "version": "1.7.0",
-  "description": "Create a Node.js app for building production-ready RESTful APIs using Express, by running one command",
+  "description": "Trustify - A platform for online notarization services leveraging blockchain and NFT for document storage",
   "bin": "bin/createNodejsApp.js",
   "main": "src/index.js",
   "repository": "https://github.com/hagopj13/node-express-boilerplate.git",
