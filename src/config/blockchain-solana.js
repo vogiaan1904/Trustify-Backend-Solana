@@ -6,6 +6,7 @@ const { bs58 } = require('@project-serum/anchor/dist/cjs/utils/bytes');
 const { Wallet, AnchorProvider, Program, web3 } = require('@project-serum/anchor');
 const { findProgramAddressSync } = require('@project-serum/anchor/dist/cjs/utils/pubkey');
 const { getAssociatedTokenAddress } = require('@solana/spl-token');
+const { Metadata } = require('@metaplex-foundation/mpl-token-metadata');
 
 // Utility functions
 const getKeypair = (privateKey) => {
@@ -93,7 +94,7 @@ const mintDocumentNFT = async (tokenUri, recipient = walletKeypair.publicKey) =>
         programData: programDataPDA,
         mint: mintKeypair.publicKey,
         tokenAccount: associatedTokenAccount,
-        recipient: recipient, // Use the provided recipient address
+        recipient: recipient, 
         metadata: metadataAddress,
         mintAuthority: mintAuthorityPDA,
         tokenMetadataProgram: tokenMetadataProgramID,
@@ -115,9 +116,7 @@ const mintDocumentNFT = async (tokenUri, recipient = walletKeypair.publicKey) =>
   }
 };
 
-/**
- * Helper function to find mint address from transaction
- */
+
 const findMintAddressFromTransaction = (transaction) => {
   try {
     const { accounts, instructions } = transaction.transaction.message;
@@ -163,13 +162,33 @@ const getTransactionData = async (signature) => {
 
     // Find mint address from transaction
     const mintAddress = findMintAddressFromTransaction(transaction);
+    if (!mintAddress) {
+      throw new Error('Mint address not found in transaction');
+    }
 
     // Get program data to verify token details
     const programData = await program.account.programData.fetch(programDataPDA);
 
+    // Get metadata account
+    const [metadataAddress] = findProgramAddressSync(
+      [Buffer.from('metadata'), tokenMetadataProgramID.toBuffer(), new PublicKey(mintAddress).toBuffer()],
+      tokenMetadataProgramID
+    );
+
+    // Fetch metadata account data
+    const metadataAccount = await connection.getAccountInfo(metadataAddress);
+    let tokenURI = '';
+    if (metadataAccount) {
+      const metadata = Metadata.deserialize(metadataAccount.data)[0];
+      tokenURI = metadata.data.uri;
+    }
+
     return {
-      signature,
+      transactionHash: signature,
       mintAddress,
+      tokenId: mintAddress, 
+      tokenURI: tokenURI,
+      contractAddress: programPublicKey.toString(),
       blockNumber: transaction.slot,
       timestamp: blockTime,
       programId: programPublicKey.toString(),
