@@ -30,7 +30,7 @@ const walletKeypair = getKeypair(process.env.WALLET_PRIVATE_KEY);
 const signer = new Wallet(walletKeypair);
 
 // Initialize Solana connection
-const connection = new Connection(process.env.PROGRAM_ID);
+const connection = new Connection(process.env.SOLANA_NETWORK_URL || 'https://api.devnet.solana.com', "confirmed");
 const provider = new AnchorProvider(connection, signer, AnchorProvider.defaultOptions());
 const program = new Program(programIDL, programPublicKey, provider);
 const [programDataPDA] = findProgramAddressSync([Buffer.from('program_data')], programPublicKey);
@@ -90,7 +90,7 @@ const mintDocumentNFT = async (tokenUri) => {
       .accounts({
         signer: walletKeypair.publicKey,
         trustedForwarder: walletKeypair.publicKey,
-        programData: programPublicKey,
+        programData: programDataPDA,
         mint: mintKeypair.publicKey,
         tokenAccount: associatedTokenAccount,
         recipient: walletKeypair.publicKey,
