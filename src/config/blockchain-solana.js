@@ -60,7 +60,7 @@ const uploadToIPFS = async (fileBuffer, fileName) => {
 };
 
 // Mint NFT with document hash
-const mintDocumentNFT = async (tokenUri) => {
+const mintDocumentNFT = async (tokenUri, recipient = walletKeypair.publicKey) => {
   try {
     // Create mint account
     const mintKeypair = Keypair.generate();
@@ -78,10 +78,10 @@ const mintDocumentNFT = async (tokenUri) => {
       tokenMetadataProgramID
     );
 
-    // Get associated token account
+    // Get associated token account for the recipient
     const associatedTokenAccount = await getAssociatedTokenAddress(
       mintKeypair.publicKey,
-      walletKeypair.publicKey // recipient is the wallet owner
+      recipient // Use the provided recipient address
     );
 
     // Mint NFT - using only parameters defined in IDL
@@ -93,7 +93,7 @@ const mintDocumentNFT = async (tokenUri) => {
         programData: programDataPDA,
         mint: mintKeypair.publicKey,
         tokenAccount: associatedTokenAccount,
-        recipient: walletKeypair.publicKey,
+        recipient: recipient, // Use the provided recipient address
         metadata: metadataAddress,
         mintAuthority: mintAuthorityPDA,
         tokenMetadataProgram: tokenMetadataProgramID,
